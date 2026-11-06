@@ -1,0 +1,69 @@
+import { _electron as electron } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdir, writeFile, rm, appendFile } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+const root = resolve('tests/tmp/ui');
+await rm(root, { recursive: true, force: true });
+await mkdir(join(root, 'codex/sessions'), { recursive: true });
+const now = Date.now(), stamp = offset => new Date(now + offset).toISOString();
+const rows = [{ type: 'session_meta', timestamp: stamp(-3600000), payload: { id: 'ui-fixture', timestamp: stamp(-3600000) } }];
+const models = ['gpt-6.1-sol', 'gpt-6-astra', 'a-very-long-model-name-that-must-not-overflow-the-panel'];
+let input = 0, output = 0;
+for (let i = 0; i < 3; i++) {
+  input += 2100000 * (3 - i); output += 50000 * (3 - i);
+  rows.push({ type: 'turn_context', payload: { model: models[i] } }, { type: 'event_msg', timestamp: stamp(-1800000 + i * 100000), payload: { type: 'token_count', info: { total_token_usage: { input_tokens: input, output_tokens: output, cached_input_tokens: input * .8, reasoning_output_tokens: output * .5 } } } });
+}
+const file = join(root, 'codex/sessions/fixture.jsonl');
+await writeFile(file, rows.map(JSON.stringify).join('\n') + '\n');
+const env = { ...process.env, MODELTIDE_DATA_DIR: join(root, 'data'), MODELTIDE_CODEX_DIR: join(root, 'codex'), MODELTIDE_TEST_STANDALONE: '1' };
+delete env.ELECTRON_RUN_AS_NODE;
+const app = await electron.launch({ args: ['.'], env, timeout: 30000 });
+const errors = [];
+let client;
+try {
+  const page = await app.firstWindow(); page.on('pageerror', e => errors.push(e.message));
+  await page.getByRole('heading', { name: 'ModelTide.' }).waitFor();
+  await page.waitForFunction(() => document.querySelectorAll('.models li').length === 3);
+  assert.equal(await page.getByAltText('ModelTide 托腮龙娘 Logo').evaluate(img => img.complete && img.naturalWidth === 256 && img.naturalHeight === 256), true);
+  await page.screenshot({ path: join(root, 'panel.png') });
+  assert.equal(await page.locator('.total-line strong').textContent(), '12.9M');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.getByRole('combobox', { name: '模型筛选' }).selectOption('gpt-6.1-sol');
+  await page.waitForFunction(() => document.querySelector('.total-line strong')?.textContent === '6.5M');
+  await page.getByRole('button', { name: '近 7 天', exact: true }).click();
+  await page.getByRole('heading', { name: '每日潮汐' }).waitFor();
+  await page.getByRole('combobox', { name: '模型筛选' }).selectOption('');
+  await page.getByRole('button', { name: '自定义', exact: true }).click();
+  await page.getByLabel('开始日期').fill('2020-01-01'); await page.getByLabel('结束日期').fill('2020-01-02');
+  await page.waitForFunction(() => document.querySelector('.total-line strong')?.textContent === '—');
+  assert.match(await page.locator('.empty').textContent(), /暂无用量记录/);
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByLabel('统计时区').fill('Asia/Shanghai'); await page.getByRole('button', { name: '保存时区' }).click();
+  assert.equal(await page.evaluate(async () => (await window.modeltide.state()).settings.timezone), 'Asia/Shanghai');
+  await page.getByRole('button', { name: '今天', exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.models li').length === 3);
+  assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
+  // MCP handshake, all three public tools, and structured reconciliation.
+  client = new Client({ name: 'modeltide-test', version: '1.0.0' });
+  const transport = new StdioClientTransport({ command: process.execPath, args: [resolve('dist/mcp.cjs')], env });
+  await client.connect(transport);
+  assert.equal((await client.listTools()).tools.length, 3);
+  const summary = await client.callTool({ name: 'get_usage_summary', arguments: { range: 'today' } });
+  assert.equal(summary.structuredContent.summary.total, 12900000);
+  const breakdown = await client.callTool({ name: 'get_usage_breakdown', arguments: { range: '30d' } });
+  assert.equal(breakdown.structuredContent.models.reduce((n, m) => n + m.total, 0), 12900000);
+  const opened = await client.callTool({ name: 'open_usage_widget', arguments: {} }); assert.equal(opened.structuredContent.opened, true);
+  await page.locator('.panel').waitFor();
+  const expandedMetrics = await app.evaluate(({ app }) => app.getAppMetrics());
+  // Verify background scan sees appended data within the promised fifteen seconds.
+  const next = { type: 'event_msg', timestamp: stamp(0), payload: { type: 'token_count', info: { total_token_usage: { input_tokens: input + 100, output_tokens: output + 20, cached_input_tokens: input * .8, reasoning_output_tokens: output * .5 } } } };
+  const addedAt = Date.now(); await appendFile(file, JSON.stringify(next) + '\n');
+  await page.waitForFunction(async () => (await window.modeltide.query({ range: 'today' })).summary?.total === 12900120, undefined, { timeout: 15000 });
+  assert.equal(errors.length, 0, errors.join('\n'));
+  await writeFile(join(root, 'report.json'), JSON.stringify({ passed: true, rendererErrors: errors, updateLatencyMs: Date.now() - addedAt, expandedMetrics, oneWindow: true }, null, 2));
+  await client.close(); client = null;
+  const closed = app.waitForEvent('close'); await page.keyboard.press('Escape').catch(e => { if (!String(e).includes('closed')) throw e; }); await closed;
+  console.log('PASS: UI ranges, filtering, empty state, settings, detail process exits on collapse, single window, MCP tools and incremental refresh.');
+} finally { await client?.close(); await app.close(); }

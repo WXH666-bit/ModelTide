@@ -1,0 +1,10 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, copyFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const output = process.argv[2] || 'dist';
+mkdirSync(output, { recursive: true });
+const framework = 'C:/Windows/Microsoft.NET/Framework64/v4.0.30319';
+const refs = ['System.dll', 'System.Core.dll', 'System.Web.Extensions.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll', 'WPF/WindowsBase.dll', 'WPF/PresentationCore.dll', 'WPF/PresentationFramework.dll', 'System.Xaml.dll'];
+execFileSync(`${framework}/csc.exe`, ['/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/optimize+', `/win32icon:${resolve('src/ui/assets/modeltide.ico')}`, `/win32manifest:${resolve('native/app.manifest')}`, `/out:${resolve(output, 'ModelTide.exe')}`, ...refs.map(p => `/reference:${framework}/${p}`), resolve('native/Widget.cs')], { stdio: 'inherit' });
+copyFileSync('native/ModelTide.exe.config', `${output}/ModelTide.exe.config`);
+execFileSync(`${framework}/csc.exe`, ['/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/optimize+', `/out:${resolve(output, 'ModelTide-Watcher.exe')}`, `/reference:${framework}/System.Web.Extensions.dll`, resolve('native/Watcher.cs')], { stdio: 'inherit' });

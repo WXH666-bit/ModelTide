@@ -1,0 +1,17 @@
+import { mkdir, copyFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+const root = 'release/modeltide-plugin';
+await mkdir(`${root}/.codex-plugin`, { recursive: true });
+await mkdir(`${root}/skills/modeltide-usage`, { recursive: true });
+await mkdir(`${root}/server`, { recursive: true });
+await copyFile('dist/mcp.cjs', `${root}/server/mcp.cjs`);
+const presentation = { displayName: 'ModelTide', shortDescription: '本机 Codex 模型与 Token 用量', longDescription: '查询今天、近七天、近三十天和本月的模型使用量，配合本地手绘风常驻挂件。', developerName: 'ModelTide', defaultPrompt: '查看今天的 Codex 模型和 Token 用量。', brandColor: '#C4B5F2' };
+const json = (path, data) => writeFile(path, JSON.stringify(data, null, 2));
+await json(`${root}/plugin.json`, { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'modeltide', version: '0.1.0', description: 'Local Codex usage analytics and widget', extensions: { 'com.openai': { interface: presentation } } });
+await json(`${root}/mcp.json`, { $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json', mcpServers: { modeltide: { type: 'stdio', command: 'node', args: ['${PLUGIN_ROOT}/server/mcp.cjs'] } } });
+await json(`${root}/.codex-plugin/plugin.json`, { name: 'modeltide', version: '0.1.0', description: '本机 Codex 用量统计', skills: './skills/', mcpServers: './.mcp.json', interface: presentation });
+await json(`${root}/.mcp.json`, { mcpServers: { modeltide: { command: 'node', args: ['${PLUGIN_ROOT}/server/mcp.cjs'] } } });
+await writeFile(`${root}/skills/modeltide-usage/SKILL.md`, `---\nname: modeltide-usage\ndescription: 查询本机 Codex 模型与 Token 使用情况，或展开 ModelTide 用量挂件。\n---\n\n使用 get_usage_summary 获取汇总，get_usage_breakdown 获取模型与时间明细，open_usage_widget 展开面板。\n先按用户指定的时间和时区查询；未指定时沿用挂件设置。不得把缓存输入、推理输出重复加到总量。\n明确告知统计仅覆盖本机保留日志；coverage 为 partial 或 indexing 时说明局限，不将缺失值改成零，不推断账单或套餐余额。\n若工具提示应用未运行，请用户运行本地 ModelTide.exe。不要自行上传日志或读取认证文件。\n`);
+await json('release/mcp-config.json', { mcpServers: { modeltide: { command: 'node', args: [resolve(`${root}/server/mcp.cjs`)] } } });
+await copyFile('README.md', 'release/README.md');
+console.log(`Packaged local plugin: ${resolve(root)}`);

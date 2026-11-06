@@ -1,0 +1,78 @@
+name: Build Windows
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Build application and bundle Node runtime
+        run: npm run package
+      - name: UI and MCP regression tests
+        run: npm run test:ui
+      - name: Install NSIS if needed
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'C:\Program Files (x86)\NSIS\makensis.exe')) {
+            choco install nsis --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Build single-file installer
+        run: npm run installer
+      - name: Install and smoke-test with no system Node on PATH
+        shell: pwsh
+        run: |
+          $installRoot = Join-Path $PWD 'tests/tmp/installed'
+          $setup = Get-ChildItem release/ModelTide-*-Setup-x64.exe | Select-Object -First 1
+          $installer = Start-Process -FilePath $setup.FullName -ArgumentList '/S', "/D=$installRoot" -WindowStyle Hidden -Wait -PassThru
+          if ($installer.ExitCode -ne 0) { throw "Installer exited $($installer.ExitCode)" }
+          $env:MODELTIDE_PACKAGED_ROOT = $installRoot
+          npm run test:packaged
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package local plugin and checksums
+        shell: pwsh
+        run: |
+          tar -a -c -f release/modeltide-plugin.zip -C release/modeltide-plugin .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem release/ModelTide-*-Setup-x64.exe, release/modeltide-plugin.zip |
+            Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } |
+            Set-Content release/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ModelTide-Windows-x64
+          path: |
+            release/ModelTide-*-Setup-x64.exe
+            release/modeltide-plugin.zip
+            release/SHA256SUMS.txt
+            release/README.md
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-diagnostics
+          path: |
+            tests/tmp/ui/report.json
+            tests/tmp/ui/panel.png
+            tests/tmp/packaged/report.json
+          if-no-files-found: ignore

@@ -1,0 +1,5 @@
+{
+  "name": "modeltide-local",
+  "interface": { "displayName": "ModelTide 本地插件" },
+  "plugins": [{ "name": "modeltide", "source": { "source": "local", "path": "./release/modeltide-plugin" }, "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" }, "category": "Productivity" }]
+}

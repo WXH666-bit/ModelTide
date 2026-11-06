@@ -28,6 +28,7 @@ export class UsageStore {
       CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT);`);
     this.updatedAt = (this.db.prepare("SELECT value FROM meta WHERE key='updatedAt'").get() as any)?.value ?? null;
     this.db.function('local_day', { deterministic: true }, (timestamp: any, tz: any) => dateParts(timestamp, tz).day);
+    this.db.function('local_hour', { deterministic: true }, (timestamp: any, tz: any) => dateParts(timestamp, tz).hourKey);
   }
   static async create(root: string, database: string) { await mkdir(dirname(database), { recursive: true }); return new UsageStore(root, database); }
   scan() {
@@ -127,17 +128,19 @@ export class UsageStore {
     const modelRows = this.db.prepare(`SELECT model, ${sumColumns} FROM events WHERE ${filtered} GROUP BY model ORDER BY total DESC, model`).all(...args) as any[];
     const availableModels = (this.db.prepare(`SELECT DISTINCT model FROM events WHERE ${where} ORDER BY model`).all(...params) as any[]).map(r => r.model);
     const hourly = q.range === 'today';
-    const bucketExpr = hourly ? 'substr(timestamp,1,13)' : 'local_day(timestamp,?)';
-    const rows = this.db.prepare(`SELECT ${bucketExpr} bucket,sum(input+output) total FROM events WHERE ${filtered} GROUP BY bucket ORDER BY bucket`).all(...(hourly ? args : [q.timezone, ...args])) as any[];
+    const bucketExpr = hourly ? 'local_hour(timestamp,?)' : 'local_day(timestamp,?)';
+    const rows = this.db.prepare(`SELECT ${bucketExpr} bucket,sum(input+output) total FROM events WHERE ${filtered} GROUP BY bucket ORDER BY bucket`).all(q.timezone, ...args) as any[];
     const values = new Map<string, number>(rows.map(r => [r.bucket, r.total]));
     const buckets: Usage['buckets'] = [];
     if (hourly) {
-      for (let t = Date.parse(min); t < Date.parse(max); t += 3600000) {
-        if (dateParts(t, q.timezone).day !== q.start) continue;
-        const stamp = new Date(t).toISOString().slice(0, 13);
-        const zone = new Intl.DateTimeFormat('en', { timeZone: q.timezone, timeZoneName: 'shortOffset' }).formatToParts(t).find(p => p.type === 'timeZoneName')!.value;
-        const label = `${dateParts(t, q.timezone).hour}:00 ${zone}`;
-        buckets.push({ key: stamp, label, total: values.get(stamp) ?? null });
+      const seen = new Set<string>();
+      // Quarter-hour traversal includes modern :30/:45 offsets and partial DST hours.
+      // Offset in the key keeps the two fall-back hours distinct.
+      for (let t = Date.parse(min); t < Date.parse(max); t += 15 * 60000) {
+        const parts = dateParts(t, q.timezone);
+        if (parts.day !== q.start || seen.has(parts.hourKey)) continue;
+        seen.add(parts.hourKey);
+        buckets.push({ key: parts.hourKey, label: `${parts.hour}:${parts.minute} ${parts.zone}`, total: values.get(parts.hourKey) ?? null });
       }
     } else {
       for (let day = q.start; day <= q.end; day = addDays(day, 1)) buckets.push({ key: day, label: day.slice(5).replace('-', '/'), total: values.get(day) ?? null });

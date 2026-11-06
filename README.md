@@ -1,5 +1,11 @@
 # ModelTide
 
+[简体中文](#简体中文) · [English](#english)
+
+<a id="简体中文"></a>
+
+## 简体中文
+
 ![ModelTide logo](src/ui/assets/logo.png)
 
 本机 Codex 用量挂件。Logo 根据用户提供的 Codex 龙娘参考图制作，采用银白、淡紫与深紫配色的托腮龙娘与浪花；数据全部保存在本机。
@@ -19,6 +25,10 @@ Logo 原图为 `src/ui/assets/logo-source.png`，轻量显示版本为 `logo.png
 “跟随 Codex 启动”开启后，会添加当前用户启动项 ModelTideWatcher，并运行不加载 WPF/Electron 的轻量侦测器；它每 2 秒检查 Codex 窗口出现，随后启动挂件。手动退出挂件后，本次 Codex 会话不会立即重启它；下一次 Codex 打开时再启动。关闭该开关会移除启动项，侦测器在下一轮检查退出。“开机直接启动挂件”是独立选项。两个启动选项默认关闭，不需要管理员权限。
 
 支持今天、近 7 天、近 30 天、本月和自定义日期（单次最多 367 个自然日）；近 N 天包含今天。默认时区 America/Los_Angeles，可在设置中改为 Asia/Shanghai 等 IANA 时区。开机启动默认关闭。
+
+**时区与语言：** 详情设置提供地区搜索和 27 个常用时区，包括北京时间（北京/上海，`Asia/Shanghai`）、香港、台北、东京、首尔、新加坡、曼谷、印度、尼泊尔、迪拜、伦敦、巴黎、柏林、莫斯科、纽约、芝加哥、丹佛、洛杉矶、温哥华、圣保罗、檀香山、悉尼、阿德莱德、珀斯、奥克兰、约翰内斯堡和 UTC，也可输入其他有效的 IANA 时区。托盘可以直接选择同一组地区。夏令时和半小时/45 分钟偏移按所选地区处理；当前时区显示在面板底部。
+
+在详情设置或托盘的“界面语言”中选择“简体中文”或“English”，面板、挂件、托盘菜单和用量状态说明会随之切换。时区和语言独立保存，重启后保留；升级时不改变已有时区或启动设置。语言默认简体中文，统计默认仍为洛杉矶时区。
 
 ## 插件与本地 MCP
 
@@ -95,3 +105,118 @@ git push origin v0.1.0
 Windows x64 本地应用，未做代码签名。首次扫描耗时取决于日志大小；扫描期间数据标为整理中。窗口跟随识别官方 Windows Codex 安装路径；非标准客户端仍能通过托盘打开独立面板。
 
 已在当前 Windows 机器检查原生挂件、右键/托盘共用菜单与打包后的详情窗口。100%/200% 缩放、多显示器移动、系统重启后的自启动与 Codex 完整关闭再打开仍需人工验收；原生自动测试需要本机 Codex 正在运行。
+
+## 许可证
+
+项目代码采用 [MIT License](LICENSE)。发行包和插件包均附带许可证；第三方组件遵循各自的许可证。
+
+---
+
+<a id="english"></a>
+
+## English
+
+[Back to 简体中文](#简体中文)
+
+ModelTide is a local Codex token-usage companion for Windows, with a silver-haired chibi dragon mascot, a lightweight native widget, and an on-demand detail panel. Usage data stays on your machine.
+
+### Install and use
+
+Download `ModelTide-<version>-Setup-x64.exe` from [GitHub Releases](https://github.com/WXH666-bit/ModelTide/releases). Windows 10/11 x64 and .NET Framework 4.8 are required. The installer bundles Node.js and Electron, so end users do not need to install Node separately. It installs to `%LOCALAPPDATA%/Programs/ModelTide` and adds a Start menu shortcut. Uninstalling preserves personal settings and the usage index.
+
+You can also run `ModelTide.exe` from the complete `release/win-unpacked` directory. Keep that directory together: the launcher EXE alone is not a portable application. Before updating or uninstalling, quit the widget and temporarily disable **Start with Codex** to release the watcher executable.
+
+The 48×84 DIP native widget docks near the bottom of Codex's left rail. This is a separate window that follows Codex, not an injected sidebar component. It hides when Codex is minimized or another app is in the foreground. Drag its top grip to move it; click to open details; press Escape to close the entire Electron detail process.
+
+Right-click the widget or its tray icon to open the usage panel, refresh, reset position, change always-on-top, choose a time zone or language, configure startup, or quit.
+
+**Start with Codex** runs a lightweight watcher and registers the current-user `ModelTideWatcher` sign-in entry. It checks every two seconds and launches the widget when Codex appears. Manually quitting the widget does not immediately relaunch it in the same Codex session; the next Codex launch can start it again. Disabling this setting removes the sign-in entry and stops the watcher on its next check. **Start widget at sign-in** is a separate setting. Both startup options are off by default and require no administrator access.
+
+### Time zones and languages
+
+Choose **Settings → Statistics time zone** or the tray time-zone menu. The panel supports searching 27 common regions: Beijing/Shanghai (`Asia/Shanghai`), Hong Kong, Taipei, Tokyo, Seoul, Singapore, Bangkok, New Delhi, Kathmandu, Dubai, London, Paris, Berlin, Moscow, New York, Chicago, Denver, Los Angeles, Vancouver, São Paulo, Honolulu, Sydney, Adelaide, Perth, Auckland, Johannesburg, and UTC. Other valid IANA time zones can be entered manually.
+
+The selected region controls calendar-day boundaries and daylight saving time, including half-hour and 45-minute offsets. The current zone is visible in the panel footer. Changing it does not modify source logs.
+
+Choose **Language → 简体中文 / English** in the panel or tray. The panel, native widget, tray menus, and usage status messages follow the selected language. Language and time zone persist independently across restarts. Existing time-zone and startup preferences are retained on upgrade. Defaults remain Simplified Chinese and `America/Los_Angeles`.
+
+### Usage accounting
+
+- Ranges: today, last 7 days, last 30 days, this month, and custom dates (up to 367 calendar days). Rolling ranges include today.
+- Sources: `sessions` and `archived_sessions` under `CODEX_HOME`, or `~/.codex` if unset. Logs are read-only; authentication files are not read and chat bodies are not stored.
+- Total tokens = input + output. Cached input is included in input; reasoning output is included in output. Neither is added twice.
+- Repeated cumulative notifications and archived copies are deduplicated. Recognized fork prefixes are excluded from child-session consumption. Counter resets, missing prefixes, and unknown attribution are marked as partial data.
+- Missing data appears as a dash or a chart gap, not zero. Each usage increment belongs to its recorded event timestamp and current model context; finer timing cannot be reconstructed from aggregate records.
+- Statistics cover locally retained records only. They are not a bill, plan balance, or cross-device total. The index retains observed usage even if source logs are later removed.
+
+Initial indexing streams historical logs; later scans read appended content every ten seconds. Today uses local hourly buckets; other ranges use daily buckets. Filters, model totals, and trend totals share the same accounting.
+
+### Local plugin and MCP
+
+The optional `modeltide-plugin.zip` contains standard manifests, a skill, and a bundled MCP server. Start the widget first. MCP communicates with the local service through a Windows named pipe, with no TCP listener.
+
+For an installed application, connect MCP directly using its bundled Node runtime (replace the plugin path):
+
+```powershell
+codex mcp add modeltide -- "$env:LOCALAPPDATA\Programs\ModelTide\resources\node.exe" "C:\path\to\modeltide-plugin\server\mcp.cjs"
+```
+
+Tools: `get_usage_summary`, `get_usage_breakdown`, and `open_usage_widget`. Query arguments include `range` (`today/7d/30d/month/custom`), optional IANA `timezone` and `model`, and `start/end` in YYYY-MM-DD form for custom ranges. Responses include totals, groups, coverage, and last-update information.
+
+Alternatively, after building the project, register its local marketplace:
+
+```powershell
+codex plugin marketplace add "C:\path\to\ModelTide"
+codex plugin add modeltide@modeltide-local
+```
+
+The marketplace plugin's default MCP command requires Node.js 24+ on PATH. Do not enable both connections simultaneously, or tools will appear twice. The plugin is distributed locally and is not automatically submitted to the public plugin directory.
+
+### Development and validation
+
+Development requires Windows x64, Node.js 24+, and the .NET Framework compiler. NSIS 3 (or `MODELTIDE_MAKENSIS`) is required for the installer.
+
+```powershell
+npm ci
+npm run build
+npm start
+npm run typecheck
+npm test
+npm run test:ui
+npm run package
+npm run test:packaged
+npm run installer
+```
+
+`npm run test:native` additionally exercises the watcher and requires Codex to be running. Quit running release executables before rebuilding them. The bundled Node runtime uses the build machine's version and includes its license.
+
+Resident processes are a native WPF widget and a Node collector. Electron exists only while details are open. Logs are read in 256 KiB chunks, the SQLite page cache is limited to 4 MiB, and the Node old-generation heap is limited to 64 MiB. Validation notes are in `tests/VALIDATION.md`.
+
+Data lives in `%APPDATA%/ModelTide`. For isolated tests, use `MODELTIDE_DATA_DIR` and `MODELTIDE_CODEX_DIR`. Temporary files belong in `tests/tmp/` and are excluded from Git and distributions. There are no network uploads or background model calls.
+
+Logo assets: `src/ui/assets/logo-source.png` is the generated original, `logo.png` is the lightweight display export, and `modeltide.ico` contains 16–256 px Windows icons. The logo was created with image_gen using the supplied character reference; its prompt is in `logo-prompt.txt`. Run `npm run icons` to regenerate size/format exports.
+
+### CI builds and releases
+
+`.github/workflows/windows-build.yml` runs on pushes, pull requests, and manual dispatch. It checks types and accounting, builds the Windows app, tests UI/MCP, generates an installer, and installs it in an isolated directory. Packaged-app tests clear PATH to verify that system Node is not required.
+
+Development builds are downloadable from **Actions → Build Windows → a successful run → Artifacts → ModelTide-Windows-x64**. Versioned releases offer direct EXE downloads plus the plugin ZIP, SHA-256 checksums, and this bilingual README.
+
+After pushing the desired source changes, publish a new version by creating and pushing an unused tag:
+
+```powershell
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+CI synchronizes application, installer, and plugin versions from the tag in its own checkout. Tags such as `v0.2.0-beta.1` produce prereleases. Only valid version-tag pushes publish releases; ordinary branch pushes, PRs, and manual builds produce artifacts only.
+
+Publishing waits for all build and test jobs to pass. All files are uploaded to a draft before publication. Failed uploads can be retried against that draft; published releases are never overwritten. The repository's built-in `GITHUB_TOKEN` is used, with no personal token required.
+
+### Limitations and license
+
+The Windows x64 application is unsigned. Initial indexing time depends on log size and is shown as in progress. Window tracking recognizes the official Windows Codex installation; other clients can still use the standalone detail panel from the tray.
+
+Native widget, shared tray menu, and packaged details have been checked on the development machine. Multiple monitors, 100%/200% scaling, Windows sign-in startup, and full Codex minimize/close/reopen transitions still require manual acceptance testing.
+
+Project code is licensed under the [MIT License](LICENSE), included in application and plugin distributions. Third-party components retain their respective licenses.

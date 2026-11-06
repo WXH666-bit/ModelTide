@@ -27,9 +27,14 @@ try {
   await writeFile(settingsPath, '{'); await sleep(2500);
   assert.equal(watcher.exitCode, null, 'watcher survives a partially written setting');
   await writeFile(settingsPath, JSON.stringify(settings));
-  await request('settings', { timezone: 'Asia/Shanghai', alwaysOnTop: false });
+  assert.equal((await request('state')).settings.language, 'zh-CN', 'legacy settings migrate to Chinese');
+  await request('settings', { timezone: 'Asia/Shanghai', language: 'en', alwaysOnTop: false });
   assert.equal((await request('state')).settings.timezone, 'Asia/Shanghai');
   assert.equal((await request('state')).settings.alwaysOnTop, false);
+  assert.equal((await request('state')).settings.language, 'en');
+  assert.match((await request('snapshot')).usage.coverage.message, /Local records/);
+  assert.equal(JSON.parse(await readFile(settingsPath, 'utf8')).language, 'en');
+  await assert.rejects(() => request('settings', { language: 'invalid' }), /Unsupported interface language/);
   await request('reset');
   assert.equal(JSON.parse(await readFile(settingsPath, 'utf8')).offset, null);
   await request('quit');

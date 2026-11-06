@@ -4,6 +4,18 @@
 .panel header{height:63px;border-bottom-color:#100d17;padding:8px 14px;gap:7px}
 .brand{gap:8px}.character{width:46px;height:47px;flex:none;display:grid;place-items:center}
 .character img{width:46px;height:46px;object-fit:contain;pointer-events:none}
+.settings select{width:100%;max-width:none;padding:8px;background:#2c2536;color:var(--ink);border:1px solid #79658c;border-radius:4px;font:inherit}
+.settings label{margin-bottom:12px}
+.timezone-options{max-height:130px;overflow-y:auto;border:1px solid var(--line);margin:6px 0 12px}
+.timezone-options button{display:flex;flex-direction:column;align-items:flex-start;width:100%;padding:7px 9px;text-align:left;border-bottom:1px solid var(--line);font-size:12px;background:transparent;color:var(--ink)}
+.timezone-options button:hover{background:#302938}
+.timezone-options button[aria-pressed=true]{background:#3b304a;color:var(--accent)}
+.timezone-options small{color:var(--muted);font-size:11px}.timezone-options p{padding:8px}
+.settings .timezone-help{font-size:12px;line-height:1.5;margin:6px 0 10px}
+.current-timezone{display:block;width:100%;text-align:left;font-size:10px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+html[lang=en] .brand p{font-size:10px;letter-spacing:0;max-width:220px}
+html[lang=en] .metrics span{font-size:10px;white-space:normal;line-height:1.2;min-height:24px;display:block}
+html[lang=en] .session-count span{font-size:10px}
 h1{font-size:23px}.brand p{letter-spacing:1px;font-size:11px;color:var(--muted)}
 .panel-body{padding:8px 17px 10px;scrollbar-color:#78678f transparent}
 .range-tabs{margin-bottom:7px}.range-tabs button{padding:4px 3px 7px}

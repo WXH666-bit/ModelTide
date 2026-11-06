@@ -70,6 +70,7 @@ jobs:
             release/modeltide-plugin.zip
             release/SHA256SUMS.txt
             release/README.md
+            release/LICENSE
           if-no-files-found: error
           retention-days: 30
       - uses: actions/upload-artifact@v4
@@ -104,7 +105,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $tag = $env:RELEASE_TAG
           $version = $tag.Substring(1)
-          $assets = @("release/ModelTide-$version-Setup-x64.exe", 'release/modeltide-plugin.zip', 'release/SHA256SUMS.txt', 'release/README.md')
+          $assets = @("release/ModelTide-$version-Setup-x64.exe", 'release/modeltide-plugin.zip', 'release/SHA256SUMS.txt', 'release/README.md', 'release/LICENSE')
           foreach ($asset in $assets) {
             if (!(Test-Path -LiteralPath $asset)) { throw "Missing release asset: $asset" }
           }

@@ -11,13 +11,13 @@ export interface Usage {
   coverage: { first: string | null; last: string | null; state: 'indexing' | 'partial' | 'available' | 'empty'; issues: number; files: number; processedFiles: number; message: string };
   updatedAt: string | null;
 }
-export interface Settings { timezone: string; offset: { x: number; y: number } | null; launchAtLogin: boolean; followCodex: boolean; alwaysOnTop: boolean }
+export interface Settings { timezone: string; language: import('./locale').Language; offset: { x: number; y: number } | null; launchAtLogin: boolean; followCodex: boolean; alwaysOnTop: boolean }
 export interface HostState { expanded: boolean; attached: boolean; settings: Settings; error?: string }
 export interface Bridge {
   query(q: Query): Promise<Usage>;
   state(): Promise<HostState>;
   action(action: 'toggle' | 'collapse' | 'refresh' | 'reset' | 'quit' | 'drag-start' | 'drag-end'): Promise<void>;
-  settings(settings: Partial<Pick<Settings, 'timezone' | 'launchAtLogin' | 'followCodex' | 'alwaysOnTop'>>): Promise<Settings>;
+  settings(settings: Partial<Pick<Settings, 'timezone' | 'language' | 'launchAtLogin' | 'followCodex' | 'alwaysOnTop'>>): Promise<Settings>;
   subscribe(callback: (state: HostState) => void): () => void;
 }
 declare global { interface Window { modeltide: Bridge } }

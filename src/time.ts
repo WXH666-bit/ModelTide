@@ -3,9 +3,10 @@ const formatters = new Map<string, Intl.DateTimeFormat>();
 export function validTimezone(tz: string) { try { new Intl.DateTimeFormat('en', { timeZone: tz }); return true; } catch { return false; } }
 export function dateParts(timestamp: string | number, tz: string) {
   let f = formatters.get(tz);
-  if (!f) { f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }); if (formatters.size > 8) formatters.clear(); formatters.set(tz, f); }
+  if (!f) { f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZoneName: 'shortOffset', hourCycle: 'h23' }); if (formatters.size > 8) formatters.clear(); formatters.set(tz, f); }
   const parts = Object.fromEntries(f.formatToParts(new Date(timestamp)).map(p => [p.type, p.value]));
-  return { day: `${parts.year}-${parts.month}-${parts.day}`, hour: parts.hour };
+  const day = `${parts.year}-${parts.month}-${parts.day}`;
+  return { day, hour: parts.hour, minute: parts.minute, zone: parts.timeZoneName, hourKey: `${day}T${parts.hour} ${parts.timeZoneName}` };
 }
 export function addDays(day: string, days: number) { return new Date(Date.parse(`${day}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10); }
 export function isDay(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s; }

@@ -42,7 +42,7 @@ namespace ModelTide {
           writer.WriteLine(Json.Serialize(new { method = method, @params = parameters ?? new object() })); writer.Flush();
           var reader = new StreamReader(pipe, Encoding.UTF8);
           var read = reader.ReadLineAsync();
-          if (!read.Wait(12000)) throw new IOException("统计服务响应超时");
+          if (!read.Wait(12000)) throw new IOException(Locale.T("timeout"));
           var reply = Json.Deserialize<Dictionary<string, object>>(read.Result);
           if (reply.ContainsKey("error")) throw new IOException(Convert.ToString(reply["error"]));
           return reply["result"] as Dictionary<string, object>;
@@ -56,6 +56,7 @@ namespace ModelTide {
     private readonly DispatcherTimer poll = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
     private Forms.NotifyIcon tray;
     private Forms.ToolStripMenuItem followItem, startupItem, topItem;
+    private readonly Dictionary<string, Forms.ToolStripMenuItem> zoneItems = new Dictionary<string, Forms.ToolStripMenuItem>();
     private Process collector, detail;
     private IntPtr hwnd, target;
     private DateTime searchAfter = DateTime.MinValue;
@@ -65,7 +66,7 @@ namespace ModelTide {
     private Native.RECT targetRect;
     private bool standalone = Environment.GetEnvironmentVariable("MODELTIDE_TEST_STANDALONE") == "1";
     public Widget() {
-      Title = "ModelTide · 今日用量"; Width = 48; Height = 84; Left = 4; Top = 650;
+      Title = Locale.T("miniTitle"); Width = 48; Height = 84; Left = 4; Top = 650;
       WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; AllowsTransparency = true;
       Background = Brushes.Transparent; Topmost = true; ShowInTaskbar = standalone; ShowActivated = false;
       Content = face;
@@ -87,23 +88,37 @@ namespace ModelTide {
       Closing += (s, e) => { closing = true; follow.Stop(); poll.Stop(); if (tray != null) tray.Dispose(); if (detail != null) { try { detail.CloseMainWindow(); } catch {} } };
     }
     private void SetupTray() {
-      tray = new Forms.NotifyIcon { Text = "ModelTide · 本机 Codex 用量", Visible = true, Icon = System.Drawing.Icon.ExtractAssociatedIcon(System.Reflection.Assembly.GetExecutingAssembly().Location) };
+      if (tray == null) {
+        tray = new Forms.NotifyIcon { Visible = true, Icon = System.Drawing.Icon.ExtractAssociatedIcon(System.Reflection.Assembly.GetExecutingAssembly().Location) };
+        tray.DoubleClick += (s, e) => Dispatcher.Invoke(new Action(OpenDetail));
+      }
+      tray.Text = Locale.T("trayTitle");
+      var oldMenu = tray.ContextMenuStrip;
       var menu = new Forms.ContextMenuStrip();
-      menu.Items.Add("展开用量面板", null, (s, e) => Dispatcher.Invoke(new Action(OpenDetail)));
-      menu.Items.Add("刷新统计", null, async (s, e) => { try { await Entry.Rpc("refresh", null); await Update(); } catch {} });
-      menu.Items.Add("重置挂件位置", null, async (s, e) => { offsetX = offsetY = null; try { await Entry.Rpc("settings", new { offset = (object)null }); } catch {} Follow(); });
+      menu.Items.Add(Locale.T("open"), null, (s, e) => Dispatcher.Invoke(new Action(OpenDetail)));
+      menu.Items.Add(Locale.T("refreshStats"), null, async (s, e) => { try { await Entry.Rpc("refresh", null); await Update(); } catch {} });
+      menu.Items.Add(Locale.T("reset"), null, async (s, e) => { offsetX = offsetY = null; try { await Entry.Rpc("settings", new { offset = (object)null }); } catch {} Follow(); });
       menu.Items.Add(new Forms.ToolStripSeparator());
-      topItem = new Forms.ToolStripMenuItem("窗口置顶"); topItem.Checked = true; topItem.Click += async (s, e) => await Setting(new { alwaysOnTop = !topItem.Checked }); menu.Items.Add(topItem);
-      var zones = new Forms.ToolStripMenuItem("统计时区");
-      zones.DropDownItems.Add("洛杉矶 · America/Los_Angeles", null, async (s, e) => await Setting(new { timezone = "America/Los_Angeles" }));
-      zones.DropDownItems.Add("上海 · Asia/Shanghai", null, async (s, e) => await Setting(new { timezone = "Asia/Shanghai" }));
-      zones.DropDownItems.Add("UTC", null, async (s, e) => await Setting(new { timezone = "UTC" }));
-      zones.DropDownItems.Add("更多设置…", null, (s, e) => OpenDetail()); menu.Items.Add(zones);
-      followItem = new Forms.ToolStripMenuItem("跟随 Codex 启动"); followItem.Click += async (s, e) => await Setting(new { followCodex = !followItem.Checked }); menu.Items.Add(followItem);
-      startupItem = new Forms.ToolStripMenuItem("开机直接启动挂件"); startupItem.Click += async (s, e) => await Setting(new { launchAtLogin = !startupItem.Checked }); menu.Items.Add(startupItem);
+      topItem = new Forms.ToolStripMenuItem(Locale.T("alwaysOnTop")); topItem.Checked = true; topItem.Click += async (s, e) => await Setting(new { alwaysOnTop = !topItem.Checked }); menu.Items.Add(topItem);
+      var zones = new Forms.ToolStripMenuItem(Locale.T("timezone")); zoneItems.Clear();
+      foreach (Dictionary<string, object> zone in Locale.Zones) {
+        string id = Convert.ToString(zone["id"]);
+        var item = new Forms.ToolStripMenuItem(Convert.ToString(zone[Locale.Language]) + " · " + id);
+        item.Click += async (s, e) => await Setting(new { timezone = id });
+        zones.DropDownItems.Add(item); zoneItems[id] = item;
+      }
+      zones.DropDownItems.Add(Locale.T("moreSettings"), null, (s, e) => OpenDetail()); menu.Items.Add(zones);
+      var languages = new Forms.ToolStripMenuItem(Locale.T("language"));
+      var chinese = new Forms.ToolStripMenuItem("简体中文") { Checked = Locale.Language == "zh-CN" };
+      var english = new Forms.ToolStripMenuItem("English") { Checked = Locale.Language == "en" };
+      chinese.Click += async (s, e) => await Setting(new { language = "zh-CN" });
+      english.Click += async (s, e) => await Setting(new { language = "en" });
+      languages.DropDownItems.Add(chinese); languages.DropDownItems.Add(english); menu.Items.Add(languages);
+      followItem = new Forms.ToolStripMenuItem(Locale.T("followCodex")); followItem.Click += async (s, e) => await Setting(new { followCodex = !followItem.Checked }); menu.Items.Add(followItem);
+      startupItem = new Forms.ToolStripMenuItem(Locale.T("launchAtLogin")); startupItem.Click += async (s, e) => await Setting(new { launchAtLogin = !startupItem.Checked }); menu.Items.Add(startupItem);
       menu.Items.Add(new Forms.ToolStripSeparator());
-      menu.Items.Add("退出 ModelTide", null, (s, e) => Dispatcher.Invoke(new Action(Close)));
-      tray.ContextMenuStrip = menu; tray.DoubleClick += (s, e) => Dispatcher.Invoke(new Action(OpenDetail));
+      menu.Items.Add(Locale.T("quit"), null, (s, e) => Dispatcher.Invoke(new Action(Close)));
+      tray.ContextMenuStrip = menu; if (oldMenu != null) oldMenu.Dispose();
     }
     private async Task Setting(object value) {
       try { await Entry.Rpc("settings", value); await Update(); }
@@ -118,7 +133,7 @@ namespace ModelTide {
         var info = new ProcessStartInfo(node, "--max-old-space-size=64 --max-semi-space-size=4 \"" + script + "\" --owner-pid=" + Process.GetCurrentProcess().Id) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Entry.Root };
         info.EnvironmentVariables["MODELTIDE_WIDGET_EXE"] = System.Reflection.Assembly.GetExecutingAssembly().Location;
         collector = Process.Start(info);
-      } catch (Exception e) { face.Set("!", "需要 Node.js 24+：" + e.Message); }
+      } catch (Exception e) { face.Set("!", Locale.T("nodeRequired") + ": " + e.Message); }
     }
     private async Task Update() {
       if (querying || closing) return; querying = true;
@@ -128,14 +143,17 @@ namespace ModelTide {
         var coverage = (Dictionary<string, object>)usage["coverage"];
         var summary = usage["summary"] as Dictionary<string, object>;
         var settings = (Dictionary<string, object>)result["settings"];
+        string language = settings.ContainsKey("language") && Convert.ToString(settings["language"]) == "en" ? "en" : "zh-CN";
+        if (language != Locale.Language) { Locale.Language = language; Title = Locale.T("miniTitle"); SetupTray(); face.InvalidateVisual(); }
+        foreach (var zone in zoneItems) zone.Value.Checked = zone.Key == Convert.ToString(settings["timezone"]);
         if (settings.ContainsKey("followCodex")) followItem.Checked = Convert.ToBoolean(settings["followCodex"]);
         startupItem.Checked = Convert.ToBoolean(settings["launchAtLogin"]);
         if (settings.ContainsKey("alwaysOnTop")) { topItem.Checked = Convert.ToBoolean(settings["alwaysOnTop"]); Topmost = topItem.Checked; }
         var saved = settings["offset"] as Dictionary<string, object>;
         if (!dragging && saved != null) { offsetX = Convert.ToDouble(saved["x"]); offsetY = Convert.ToDouble(saved["y"]); }
         string amount = summary == null ? (Convert.ToString(coverage["state"]) == "indexing" ? "···" : "—") : Compact(Convert.ToDouble(summary["total"]));
-        string tooltip = summary == null ? "暂无用量记录" : Convert.ToDouble(summary["total"]).ToString("N0", CultureInfo.InvariantCulture) + " Tokens";
-        tooltip += "\n" + coverage["message"] + "\n点击展开 · 拖动顶部移动";
+        string tooltip = summary == null ? Locale.T("noUsage") : Convert.ToDouble(summary["total"]).ToString("N0", CultureInfo.InvariantCulture) + " Tokens";
+        tooltip += "\n" + Locale.T("timezone") + ": " + settings["timezone"] + "\n" + coverage["message"] + "\n" + Locale.T("clickHint");
         if (result.ContainsKey("error") && result["error"] != null) tooltip = Convert.ToString(result["error"]);
         face.Set(amount, tooltip);
         long seq = Convert.ToInt64(result["commandSequence"]);
@@ -143,7 +161,7 @@ namespace ModelTide {
           commandSequence = seq;
           switch (Convert.ToString(result["command"])) { case "open": OpenDetail(); break; case "reset": offsetX = offsetY = null; Follow(); break; case "quit": Close(); break; }
         }
-      } catch (Exception e) { face.Set("···", "正在连接统计服务：" + e.Message); }
+      } catch (Exception e) { face.Set("···", Locale.T("connecting") + ": " + e.Message); }
       finally { querying = false; }
     }
     private static string Compact(double value) {
@@ -163,7 +181,7 @@ namespace ModelTide {
         detail = Process.Start(info); detail.EnableRaisingEvents = true;
         detail.Exited += (s, e) => { if (!closing) Dispatcher.BeginInvoke(new Action(() => { detail = null; Follow(); })); };
         Hide();
-      } catch (Exception e) { face.Set("!", "详情无法启动：" + e.Message); Show(); }
+      } catch (Exception e) { face.Set("!", Locale.T("detailFailed") + ": " + e.Message); Show(); }
     }
     private void Follow() {
       if (closing || dragging) return;
@@ -221,7 +239,7 @@ namespace ModelTide {
       dc.DrawRoundedRectangle(Bg, null, new Rect(0, 0, 64, 112), 4, 4);
       for (int i = 0; i < 3; i++) dc.DrawLine(new Pen(Muted, 1.3), new Point(19 + i * 9, 9), new Point(25 + i * 9, 9));
       if (character != null) dc.DrawImage(character, new Rect(7, 12, 50, 50));
-      Text(dc, "今日", 10, Accent, 63, true);
+      Text(dc, Locale.T("miniToday"), 10, Accent, 63, true);
       Text(dc, amount, amount.Length > 5 ? 17 : 20, Ink, 75, true);
       Text(dc, "TOKENS", 8.5, Muted, 99, true);
       dc.Pop();

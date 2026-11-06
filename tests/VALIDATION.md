@@ -1,5 +1,19 @@
 # Validation
 
+## v0.1.1 — locales, regional time zones, MIT
+
+Input: changes on top of `122ad905d56a46e11fec18af606274481c61c931`, recorded with this validation in the v0.1.1 commit. Existing dependencies and isolated fixtures were reused.
+
+- `npm run typecheck`: passed.
+- `npm test`: 13/13 passed, including translation key/placeholder parity, all 27 IANA presets, Beijing boundaries, India/Nepal fractional offsets, hourly reconciliation, and existing DST/accounting/release-version regression tests.
+- `npm run test:ui`: passed against the final renderer. Covers Chinese/English switching and persistence, region search, English invalid-zone feedback, no overflow, existing MCP/range/filter/update behavior, and details exiting on Escape. Inspected English panel/settings screenshots in `tests/tmp/ui/`.
+- `npm run test:native`: passed. Legacy preferences default to Chinese; English and Beijing settings persist; localized responses, watcher startup/manual quit/disable, and collector cleanup pass.
+- `npm run test:packaged`: passed with an empty PATH and saved English/Beijing preferences, bundled Node, translated details, loaded logo, and clean exit.
+- Built the native widget and inspected its English Today label, shared tray menu, and 27-zone submenu with Beijing selected using Computer Use. Restored the production widget and watcher with the user's Los Angeles timezone and follow-Codex preference preserved.
+- MIT text is included at repository root, in the packaged application resources, in the local plugin, and among Release assets. One README contains both languages.
+
+The existing manual display/startup acceptance limitations below remain; this change does not claim new multi-monitor or Windows reboot coverage.
+
 Baseline before native migration (2026-11-05): Electron 45.2.3, Windows x64, 150% display scale, one 64×88 DIP window. Whole process group: working sets 304052 KiB (~297 MiB), private bytes 142712 KiB (~139 MiB). After opening details: working sets 372224 KiB (~364 MiB), private bytes 171136 KiB (~167 MiB). These are measured process-group totals, including browser, renderer, GPU and utility; summed working sets can include shared pages.
 
 Initial engine suite: 8/8 passed (`npm test`). Initial Electron UI suite: all assertions passed (`npm run test:ui`), including ranges, filters, empty state, timezone settings, MCP handshake/three tools and incremental refresh. The native migration reuses the same engine, dependencies and test fixtures; changed integration and visuals are rechecked below.

@@ -89,6 +89,27 @@ test('empty means no records, filters are validated, quota-only messages do not 
     const state = initialState(); assert.deepEqual(parseRecord({ type: 'event_msg', payload: { type: 'token_count', info: null } }, state), {});
   } finally { await store.close(); }
 });
+test('Beijing, half-hour and quarter-hour zones use local day and hour boundaries', async () => {
+  const { store } = await fixture('fractional-zones', [meta('zones', '2026-11-04T00:00:00Z'), model('alpha'),
+    tokens('2026-11-04T18:20:00Z', 100, 20), tokens('2026-11-04T18:40:00Z', 150, 30), tokens('2026-11-04T19:10:00Z', 200, 40)]);
+  try {
+    const zoneNow = Date.parse('2026-11-05T12:00:00Z');
+    const india = store.query({ timezone: 'Asia/Kolkata' }, zoneNow);
+    assert.equal(india.summary?.total, 120);
+    assert.equal(india.buckets.length, 24);
+    assert.equal(india.buckets[0].label, '00:00 GMT+5:30');
+    assert.equal(india.buckets[0].total, 120);
+    const nepal = store.query({ timezone: 'Asia/Kathmandu' }, zoneNow);
+    assert.equal(nepal.summary?.total, 240);
+    assert.equal(nepal.buckets[0].label, '00:00 GMT+5:45');
+    assert.equal(nepal.buckets[0].total, 240);
+    assert.equal(store.query({ timezone: 'Asia/Shanghai' }, zoneNow).summary?.total, 240);
+    for (const timezone of ['Asia/Shanghai', 'Asia/Kolkata', 'Asia/Kathmandu', 'Australia/Adelaide']) {
+      const usage = store.query({ timezone }, zoneNow);
+      assert.equal(usage.buckets.reduce((n, b) => n + (b.total ?? 0), 0), usage.summary?.total ?? 0);
+    }
+  } finally { await store.close(); }
+});
 test('source log remains untouched and conversation text is not persisted', async () => {
   const secretText = 'TEST_PRIVATE_CONVERSATION_DO_NOT_INDEX';
   const { store } = await fixture('privacy', [meta('private'), model('alpha'), { type: 'response_item', payload: { content: secretText } }, tokens('2026-11-05T09:00:00Z', 12, 4)]);

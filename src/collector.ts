@@ -8,9 +8,10 @@ import { UsageStore } from './store';
 import { pipeName } from './protocol';
 import { validTimezone } from './time';
 import type { Settings } from './types';
+import { coverageText, t, translateError, validLanguage } from './locale';
 const run = promisify(execFile);
 const dataDir = process.env.MODELTIDE_DATA_DIR || join(process.env.APPDATA || homedir(), 'ModelTide');
-let settings: Settings = { timezone: 'America/Los_Angeles', offset: null, launchAtLogin: false, followCodex: false, alwaysOnTop: true };
+let settings: Settings = { timezone: 'America/Los_Angeles', language: 'zh-CN', offset: null, launchAtLogin: false, followCodex: false, alwaysOnTop: true };
 let store: UsageStore, error: string | undefined, quitting = false;
 let command = '', commandSequence = 0;
 const owner = Number(process.argv.find(a => a.startsWith('--owner-pid='))?.split('=')[1]);
@@ -18,6 +19,7 @@ const settingFile = join(dataDir, 'settings.json');
 const persist = () => writeFile(settingFile, JSON.stringify(settings, null, 2));
 async function updateSettings(update: Partial<Settings>) {
   let watcher: string | undefined;
+  if (update.language !== undefined && !validLanguage(update.language)) throw new Error(t(settings.language, 'invalidLanguage'));
   if (update.timezone !== undefined) { if (!validTimezone(update.timezone)) throw new Error('无效的 IANA 时区'); settings.timezone = update.timezone; }
   if ('offset' in update) {
     if (update.offset !== null && (!Number.isFinite(update.offset?.x) || !Number.isFinite(update.offset?.y))) throw new Error('无效的位置');
@@ -39,10 +41,16 @@ async function updateSettings(update: Partial<Settings>) {
     settings.followCodex = Boolean(update.followCodex);
   }
   if (update.alwaysOnTop !== undefined) settings.alwaysOnTop = Boolean(update.alwaysOnTop);
+  if (update.language !== undefined) settings.language = update.language;
   await persist();
   if (watcher && settings.followCodex) { const child = spawn(watcher, [], { windowsHide: true, detached: true, stdio: 'ignore' }); child.unref(); }
   return settings;
 }
+function query(params: any) {
+  const usage = store.query(params ?? {}, Date.now(), settings.timezone);
+  return { ...usage, coverage: { ...usage.coverage, message: coverageText(usage.coverage, settings.language) } };
+}
+function readError() { return error ? `${t(settings.language, 'readFailed')}: ${error}` : undefined; }
 const server = createServer(socket => {
   let input = ''; socket.setEncoding('utf8'); socket.setTimeout(10000, () => socket.destroy()); socket.on('error', () => {});
   socket.on('data', async data => {
@@ -52,9 +60,9 @@ const server = createServer(socket => {
     try {
       const { method, params } = JSON.parse(input.slice(0, end)); let result;
       if (!store) throw new Error('统计服务正在启动');
-      if (method === 'query') result = store.query(params ?? {}, Date.now(), settings.timezone);
-      else if (method === 'snapshot') result = { usage: store.query({ range: 'today' }, Date.now(), settings.timezone), settings, error, command, commandSequence };
-      else if (method === 'state') result = { expanded: true, attached: !!process.env.MODELTIDE_WIDGET_EXE, settings, error };
+      if (method === 'query') result = query(params);
+      else if (method === 'snapshot') result = { usage: query({ range: 'today' }), settings, error: readError(), command, commandSequence };
+      else if (method === 'state') result = { expanded: true, attached: !!process.env.MODELTIDE_WIDGET_EXE, settings, error: readError() };
       else if (method === 'settings') result = await updateSettings(params ?? {});
       else if (method === 'refresh') { await scan(); result = { refreshed: true }; }
       else if (method === 'reset') { settings.offset = null; await persist(); command = 'reset'; commandSequence++; result = { reset: true }; }
@@ -63,15 +71,16 @@ const server = createServer(socket => {
       else if (method === 'health') result = { ready: true, indexing: store.indexing, memory: process.memoryUsage(), pid: process.pid, error };
       else throw new Error('未知方法');
       socket.end(JSON.stringify({ result }) + '\n');
-    } catch (e: any) { socket.end(JSON.stringify({ error: e.message }) + '\n'); }
+    } catch (e: any) { socket.end(JSON.stringify({ error: translateError(e.message, settings.language) }) + '\n'); }
   });
 });
-async function scan() { try { await store.scan(); error = undefined; } catch (e: any) { error = `读取失败：${e.message}`; } }
+async function scan() { try { await store.scan(); error = undefined; } catch (e: any) { error = e.message; } }
 let scanTimer: NodeJS.Timeout, ownerTimer: NodeJS.Timeout;
 async function quit() { if (quitting) return; quitting = true; clearInterval(scanTimer); clearInterval(ownerTimer); server.close(); await store?.close(); process.exit(0); }
 async function start() {
   await mkdir(dataDir, { recursive: true });
   try { settings = { ...settings, ...JSON.parse(await readFile(settingFile, 'utf8')) }; if (!validTimezone(settings.timezone)) settings.timezone = 'America/Los_Angeles'; } catch {}
+  if (!validLanguage(settings.language)) settings.language = 'zh-CN';
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(pipeName(), resolve); });
   store = await UsageStore.create(process.env.MODELTIDE_CODEX_DIR || process.env.CODEX_HOME || join(homedir(), '.codex'), join(dataDir, 'usage.sqlite'));
   void scan(); scanTimer = setInterval(() => void scan(), 10000);

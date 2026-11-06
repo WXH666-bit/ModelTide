@@ -73,7 +73,20 @@ npm run installer
 
 `.github/workflows/windows-build.yml` 在 push、pull request 或手动触发时运行：安装锁定依赖、类型检查、统计测试、构建 Windows 应用、UI/MCP 回归、生成 NSIS 安装包，并在隔离目录安装验证。安装后的测试将 PATH 清空，确认不依赖系统 Node。
 
-在仓库 **Actions → Build Windows → 成功的运行 → Artifacts → ModelTide-Windows-x64** 下载构建产物。压缩包内包含一个安装 EXE、本地插件 ZIP、SHA-256 校验文件和说明书。普通用户只需使用安装 EXE；插件用于聊天内查询。当前工作流不会自动发布 GitHub Release。
+在仓库 **Actions → Build Windows → 成功的运行 → Artifacts → ModelTide-Windows-x64** 下载开发构建。正式版本可直接从 [GitHub Releases](https://github.com/WXH666-bit/ModelTide/releases) 下载安装 EXE，无需先下载 Actions 压缩包。普通用户只需使用安装 EXE；插件用于聊天内查询。
+
+### 按版本标签发布
+
+将要发布的代码推送后，创建并推送版本标签即可：
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+以后使用新的版本号，例如 `v0.1.1`。构建期间会从标签同步应用、安装包和插件版本，不需要手动修改包版本；同步只发生在 CI 工作目录。支持 `v0.2.0-beta.1` 等预发布标签，对应 Release 会标记为预发布。
+
+只有推送 `v` 开头的有效版本标签才会发布 Release；普通分支 push、PR 和手动构建仅生成 Actions 产物。发布任务必须等待所有构建和测试成功，并使用仓库自带的 `GITHUB_TOKEN`，无需另配个人令牌。EXE、插件 ZIP、SHA256SUMS.txt 和 README.md 全部上传到草稿后才正式发布，避免下载到不完整的一组文件。上传失败可重跑任务继续处理草稿；已发布版本不会被覆盖，请使用新标签。
 
 用户索引与设置存放在 `%APPDATA%/ModelTide`。开发/隔离测试可设置 MODELTIDE_DATA_DIR 与 MODELTIDE_CODEX_DIR；测试文件全部位于 tests/tmp，不作为交付内容。程序没有网络上传和后台模型调用。
 

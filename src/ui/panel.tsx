@@ -3,6 +3,7 @@ import type { HostState, Query, Range, Usage } from '../types';
 import { coverageText, t, timezones, type Language, type MessageKey } from '../locale';
 import { DragHandle } from './components';
 import { compact, exact } from './format';
+import { validTimezone } from '../time';
 const bridge = window.modeltide;
 const rangeKeys: [Range, MessageKey][] = [['today', 'today'], ['7d', 'week'], ['30d', 'month30'], ['month', 'month'], ['custom', 'custom']];
 
@@ -34,7 +35,9 @@ export default function Panel({ host }: { host: HostState }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [timezone, setTimezone] = useState(host.settings.timezone);
+  const [zonesOpen, setZonesOpen] = useState(false);
+  const [zoneBusy, setZoneBusy] = useState(false);
+  const [zoneError, setZoneError] = useState('');
   const [zoneSearch, setZoneSearch] = useState('');
   const sequence = useRef(0);
   const load = useCallback(async () => {
@@ -44,12 +47,19 @@ export default function Panel({ host }: { host: HostState }) {
     finally { if (id === sequence.current) setBusy(false); }
   }, [q, host.settings.timezone]);
   useEffect(() => { void load(); return bridge.subscribe(() => void load()); }, [load]);
-  useEffect(() => setTimezone(host.settings.timezone), [host.settings.timezone]);
   const chooseRange = (range: Range) => setQ(old => ({ ...old, range, ...(range === 'custom' ? { start: data?.query.start, end: data?.query.end } : {}) }));
   const change = async (value: Parameters<typeof bridge.settings>[0]) => { try { await bridge.settings(value); setError(''); } catch (e: any) { setError(e.message); } };
   const summary = data?.summary;
   const ranges = rangeKeys.map(([key, label]) => [key, text(label)] as const);
   const filteredZones = timezones.filter(zone => (zone.id + ' ' + zone['zh-CN'] + ' ' + zone.en).toLowerCase().includes(zoneSearch.trim().toLowerCase()));
+  const customZone = zoneSearch.trim();
+  const showCustomZone = customZone && !timezones.some(zone => zone.id.toLowerCase() === customZone.toLowerCase()) && validTimezone(customZone);
+  const selectZone = async (timezone: string) => {
+    setZoneBusy(true); setZoneError('');
+    try { await bridge.settings({ timezone }); setZonesOpen(false); setZoneSearch(''); }
+    catch (e: any) { setZoneError(e.message); }
+    finally { setZoneBusy(false); }
+  };
   const coverage = data ? coverageText(data.coverage, language) : text('coverageLocal');
   const formatDate = (date: string | null | undefined) => date ? new Intl.DateTimeFormat(language, { timeZone: host.settings.timezone }).format(new Date(date)) : '—';
   return <main className="panel">
@@ -58,14 +68,20 @@ export default function Panel({ host }: { host: HostState }) {
       {settingsOpen ? <section className="settings">
         <h2>{text('widgetSettings')}</h2>
         <label>{text('language')}<select aria-label={text('language')} value={language} onChange={e => void change({ language: e.target.value as Language })}><option value="zh-CN">简体中文</option><option value="en">English</option></select></label>
-        <label>{text('searchTimezone')}<input type="search" value={zoneSearch} onChange={e => setZoneSearch(e.target.value)} placeholder={text('timezonePlaceholder')}/></label>
-        <div className="timezone-options" role="group" aria-label={text('chooseTimezone')}>
-          {filteredZones.map(zone => <button key={zone.id} type="button" aria-pressed={timezone === zone.id} onClick={() => setTimezone(zone.id)}><span>{zone[language]}</span><small>{zone.id}</small></button>)}
-          {!filteredZones.length && <p>{text('noTimezone')}</p>}
+        <div className="timezone-setting">
+          <span id="timezone-label">{text('timezone')}</span>
+          <button className="timezone-trigger" type="button" aria-labelledby="timezone-label timezone-value" aria-expanded={zonesOpen} aria-controls="timezone-choices" disabled={zoneBusy} onClick={() => { setZonesOpen(!zonesOpen); setZoneSearch(''); }}><span id="timezone-value">{zoneBusy ? text('savingTimezone') : timezones.find(zone => zone.id === host.settings.timezone)?.[language] ?? host.settings.timezone}</span><span aria-hidden="true">{zonesOpen ? '▴' : '▾'}</span></button>
+          {zonesOpen && <div className="timezone-picker" id="timezone-choices" aria-busy={zoneBusy}>
+            <input type="search" aria-label={text('searchTimezone')} value={zoneSearch} onChange={e => setZoneSearch(e.target.value)} placeholder={text('timezonePlaceholder')} spellCheck={false} autoFocus disabled={zoneBusy}/>
+            <div className="timezone-options" role="group" aria-label={text('chooseTimezone')}>
+              {filteredZones.map(zone => <button key={zone.id} type="button" disabled={zoneBusy} aria-pressed={host.settings.timezone === zone.id} onClick={() => void selectZone(zone.id)}><span>{zone[language]}</span><small>{zone.id}</small></button>)}
+              {showCustomZone && <button type="button" disabled={zoneBusy} aria-pressed={host.settings.timezone === customZone} onClick={() => void selectZone(customZone)}><span>{customZone}</span><small>{text('customTimezone')}</small></button>}
+              {!filteredZones.length && !showCustomZone && <p>{text('noTimezone')}</p>}
+            </div>
+          </div>}
+          {zoneError && <p className="error" role="alert">{zoneError}</p>}
         </div>
-        <label>{text('timezone')}<input value={timezone} onChange={e => setTimezone(e.target.value)} spellCheck={false} placeholder={text('customTimezone')}/></label>
-        <p className="timezone-help">{text('timezoneHint')}</p>
-        <button className="save-button" onClick={async () => { try { await bridge.settings({ timezone }); setError(''); setSettingsOpen(false); } catch (e: any) { setError(e.message); } }}>{text('saveTimezone')}</button>
+        <p className="timezone-help">{text('timezoneAutoSave')}</p>
         {(['followCodex', 'launchAtLogin', 'alwaysOnTop'] as const).map(key => <label className="checkbox" key={key}><input type="checkbox" checked={host.settings[key]} onChange={e => void change({ [key]: e.target.checked })}/>{text(key)}</label>)}
         <button className="text-button" onClick={() => void bridge.action('reset')}>{text('reset')}</button>
         <p>{text('startupHint')}</p><p>{text(host.attached ? 'attached' : 'standalone')}</p>

@@ -1,5 +1,14 @@
 # Validation
 
+## v0.1.2 — unified, immediate-save time-zone picker
+
+Input: changes on top of `cdc54934a86209c8ab42201610e001bef7fb8181`, recorded in the v0.1.2 commit. Only renderer interaction, shared copy, documentation and UI checks changed; existing dependencies and accounting tests are reused.
+
+- `npm run typecheck`: passed.
+- `node node_modules/tsx/dist/cli.mjs --test tests/locale.test.ts`: 2/2 passed.
+- `node scripts/build.mjs` and `npm run test:ui`: passed. Selecting Beijing or Kathmandu saves without a second action, updates the active query timezone and closes the picker. Invalid search text leaves the existing timezone unchanged. A custom zone (Europe/Rome) uses the same picker. Saved language and timezone survive renderer reload. Existing range/filter/MCP/incremental-update checks pass.
+- Inspected Chinese collapsed settings and English expanded search screenshots at the actual panel size. No horizontal overflow. Temporary screenshots and test reports remain in `tests/tmp/ui/`.
+
 ## v0.1.1 — locales, regional time zones, MIT
 
 Input: changes on top of `122ad905d56a46e11fec18af606274481c61c931`, recorded with this validation in the v0.1.1 commit. Existing dependencies and isolated fixtures were reused.

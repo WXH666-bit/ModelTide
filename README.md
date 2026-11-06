@@ -30,6 +30,8 @@ Logo 原图为 `src/ui/assets/logo-source.png`，轻量显示版本为 `logo.png
 
 在详情设置或托盘的“界面语言”中选择“简体中文”或“English”，面板、挂件、托盘菜单和用量状态说明会随之切换。时区和语言独立保存，重启后保留；升级时不改变已有时区或启动设置。语言默认简体中文，统计默认仍为洛杉矶时区。
 
+点击“统计时区”展开搜索列表，选中地区后立即保存、生效并收起，无需再点保存。自定义 IANA 时区也在同一个搜索框输入，然后点击匹配项。
+
 ## 插件与本地 MCP
 
 插件目录在 `release/modeltide-plugin`，提供标准 plugin.json、mcp.json、skill 和 Codex 兼容清单。应用需要先运行，MCP 仅通过当前用户路径派生的 Windows 命名管道读取聚合结果，不开放 TCP 端口。
@@ -139,6 +141,8 @@ Choose **Settings → Statistics time zone** or the tray time-zone menu. The pan
 The selected region controls calendar-day boundaries and daylight saving time, including half-hour and 45-minute offsets. The current zone is visible in the panel footer. Changing it does not modify source logs.
 
 Choose **Language → 简体中文 / English** in the panel or tray. The panel, native widget, tray menus, and usage status messages follow the selected language. Language and time zone persist independently across restarts. Existing time-zone and startup preferences are retained on upgrade. Defaults remain Simplified Chinese and `America/Los_Angeles`.
+
+Click **Statistics time zone** to open the searchable list. Selecting a region saves and applies it immediately, then closes the list. To use a custom IANA time zone, type it in the same search field and select the matching entry. No separate Save button is needed.
 
 ### Usage accounting
 

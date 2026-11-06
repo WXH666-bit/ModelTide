@@ -6,7 +6,12 @@
 .character img{width:46px;height:46px;object-fit:contain;pointer-events:none}
 .settings select{width:100%;max-width:none;padding:8px;background:#2c2536;color:var(--ink);border:1px solid #79658c;border-radius:4px;font:inherit}
 .settings label{margin-bottom:12px}
-.timezone-options{max-height:130px;overflow-y:auto;border:1px solid var(--line);margin:6px 0 12px}
+.timezone-setting>span{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
+.timezone-trigger{display:flex;justify-content:space-between;gap:12px;width:100%;padding:10px 12px;text-align:left;background:#2c2536;color:var(--ink);border:1px solid #79658c;border-radius:4px;font-size:13px}
+.timezone-trigger span:first-child{min-width:0;overflow-wrap:anywhere}
+.timezone-picker{border:1px solid #79658c;border-top:0;padding:7px;border-radius:0 0 4px 4px}
+.settings .timezone-picker input{margin:0;width:100%}
+.timezone-options{max-height:130px;overflow-y:auto;margin-top:6px}
 .timezone-options button{display:flex;flex-direction:column;align-items:flex-start;width:100%;padding:7px 9px;text-align:left;border-bottom:1px solid var(--line);font-size:12px;background:transparent;color:var(--ink)}
 .timezone-options button:hover{background:#302938}
 .timezone-options button[aria-pressed=true]{background:#3b304a;color:var(--accent)}

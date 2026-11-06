@@ -14,13 +14,17 @@ Logo 原图为 `src/ui/assets/logo-source.png`，轻量显示版本为 `logo.png
 
 ## 使用
 
-需要 Windows 10/11 x64 与 .NET Framework 4.8（当前 Windows 10/11 通常已具备）。下载构建产物中的 `ModelTide-<版本>-Setup-x64.exe` 并安装；安装包包含 Node.js 运行时和 Electron，无需另装 Node。安装位置为 `%LOCALAPPDATA%/Programs/ModelTide`，可从开始菜单启动。卸载时保留个人设置和统计索引。
+需要 Windows 10/11 x64 与 .NET Framework 4.8（当前 Windows 10/11 通常已具备）。下载构建产物中的 `ModelTide-<版本>-Setup-x64.exe` 并安装；安装包包含 Node.js 运行时和 Electron，无需另装 Node。安装向导提供“选择安装位置”，默认路径为 `%LOCALAPPDATA%/Programs/ModelTide`，也可选择其他磁盘中的目录。重装时默认带出已有安装位置，托盘更新继续使用当前目录。可从开始菜单启动。卸载时保留个人设置和统计索引。
 
-也可使用完整的 `release/win-unpacked` 文件夹并运行其中的 `ModelTide.exe`；不能只复制这个启动文件。这是原生常驻挂件，Electron 详情只在点击后启动，Esc 收起时退出详情进程。首次整理流式读取本机日志，随后每 10 秒只读取新增内容。顶部三条短线可拖动；面板标题也可拖动。更新或卸载前请关闭挂件，并临时关闭“跟随 Codex 启动”以释放侦测器文件。
+源码工作目录、浏览器下载目录和程序安装目录彼此独立。若要将已安装的程序搬到其他磁盘，先退出并卸载旧程序，再在安装向导中选择新路径；用量数据和设置仍保存在 `%APPDATA%/ModelTide`。
 
-挂件为 48×84 DIP，默认贴在 Codex 最左侧窄栏的左下空白处，避开底部头像和按钮；采用独立窗口跟随实现视觉贴合，不修改 Codex 客户端。Codex 最小化或切换到其他应用时挂件隐藏。右击挂件或托盘图标可打开基本设置。
+也可使用完整的 `release/win-unpacked` 文件夹并运行其中的 `ModelTide.exe`；不能只复制这个启动文件。这是原生常驻挂件，Electron 详情只在点击后启动，Esc 收起时退出详情进程。首次整理流式读取本机日志，随后每 10 秒只读取新增内容。顶部三条短线可拖动；面板标题也可拖动。手动覆盖安装或卸载前请关闭挂件，并临时关闭“跟随 Codex 启动”以释放侦测器文件。
 
-托盘包含展开面板、刷新、重置位置、置顶、时区、跟随 Codex 启动、开机直接启动和退出。
+挂件为 48×84 DIP，默认贴在 Codex 最左侧窄栏的左下空白处，避开底部头像和按钮；采用独立窗口跟随实现视觉贴合，不修改 Codex 客户端。右击挂件或托盘图标可打开基本设置。
+
+托盘和详情设置中的“仅在 Codex 中显示”默认开启：Codex 在前台时显示常驻挂件，最小化、关闭或切换到其他应用时隐藏。关闭此选项后，桌面和其他应用上也能显示；Codex 关闭或最小化时保留挂件最后的位置。此开关立即生效并保存，和“跟随 Codex 启动”“窗口置顶”独立；详情面板仍可主动从托盘打开。
+
+托盘包含展开面板、刷新、重置位置、置顶、时区、跟随 Codex 启动、开机直接启动、检查更新和退出。
 
 “跟随 Codex 启动”开启后，会添加当前用户启动项 ModelTideWatcher，并运行不加载 WPF/Electron 的轻量侦测器；它每 2 秒检查 Codex 窗口出现，随后启动挂件。手动退出挂件后，本次 Codex 会话不会立即重启它；下一次 Codex 打开时再启动。关闭该开关会移除启动项，侦测器在下一轮检查退出。“开机直接启动挂件”是独立选项。两个启动选项默认关闭，不需要管理员权限。
 
@@ -31,6 +35,12 @@ Logo 原图为 `src/ui/assets/logo-source.png`，轻量显示版本为 `logo.png
 在详情设置或托盘的“界面语言”中选择“简体中文”或“English”，面板、挂件、托盘菜单和用量状态说明会随之切换。时区和语言独立保存，重启后保留；升级时不改变已有时区或启动设置。语言默认简体中文，统计默认仍为洛杉矶时区。
 
 点击“统计时区”展开搜索列表，选中地区后立即保存、生效并收起，无需再点保存。自定义 IANA 时区也在同一个搜索框输入，然后点击匹配项。
+
+### 托盘检查更新
+
+右键挂件或托盘图标，选择“检查更新”。发现 GitHub 正式版后，菜单变为“下载并安装 v…”，点击后显示下载百分比，也可取消。安装包通过 SHA-256 校验后，应用会自动关闭详情窗口、挂件和启动侦测程序，在原目录更新，再重新启动；设置和用量索引保留。下载失败可以重试，不会运行未校验的安装包。
+
+检查更新只在点击时访问本项目的 GitHub Release，不在后台定时联网，不上传用量或聊天内容，也不会自动安装预发布版或降级。应用版本显示在托盘菜单。首次从没有更新功能的旧版本升级，仍需安装一次包含此功能的版本。
 
 ## 插件与本地 MCP
 
@@ -75,6 +85,8 @@ npm run test:native
 npm run package
 npm run test:packaged
 npm run installer
+npm run test:updater
+npm run test:update-install
 ```
 
 常驻部分是原生 WPF 小窗口与一个 Node 统计服务；没有常驻 Electron。详情界面用单个 Electron 窗口，收起后退出整个详情进程组。日志按 256 KiB 分块读取；SQLite 页缓存限制为 4 MiB，Node 老生代堆限制为 64 MiB，聚合在数据库执行。可选的跟随启动侦测器不加载 WPF。实际测量记录见 tests/VALIDATION.md。
@@ -124,11 +136,15 @@ ModelTide is a local Codex token-usage companion for Windows, with a silver-hair
 
 ### Install and use
 
-Download `ModelTide-<version>-Setup-x64.exe` from [GitHub Releases](https://github.com/WXH666-bit/ModelTide/releases). Windows 10/11 x64 and .NET Framework 4.8 are required. The installer bundles Node.js and Electron, so end users do not need to install Node separately. It installs to `%LOCALAPPDATA%/Programs/ModelTide` and adds a Start menu shortcut. Uninstalling preserves personal settings and the usage index.
+Download `ModelTide-<version>-Setup-x64.exe` from [GitHub Releases](https://github.com/WXH666-bit/ModelTide/releases). Windows 10/11 x64 and .NET Framework 4.8 are required. The installer bundles Node.js and Electron, so end users do not need to install Node separately. The **Choose Install Location** page lets you select a directory on another drive; the initial default is `%LOCALAPPDATA%/Programs/ModelTide`. Reinstalling defaults to the registered installation directory, and tray updates continue to use the current directory. A Start menu shortcut is added. Uninstalling preserves personal settings and the usage index.
 
-You can also run `ModelTide.exe` from the complete `release/win-unpacked` directory. Keep that directory together: the launcher EXE alone is not a portable application. Before updating or uninstalling, quit the widget and temporarily disable **Start with Codex** to release the watcher executable.
+The source workspace, browser download folder and installed application directory are independent. To relocate an existing installation, quit and uninstall the old application first, then choose the new path in the installer. Usage data and preferences stay in `%APPDATA%/ModelTide`.
 
-The 48×84 DIP native widget docks near the bottom of Codex's left rail. This is a separate window that follows Codex, not an injected sidebar component. It hides when Codex is minimized or another app is in the foreground. Drag its top grip to move it; click to open details; press Escape to close the entire Electron detail process.
+You can also run `ModelTide.exe` from the complete `release/win-unpacked` directory. Keep that directory together: the launcher EXE alone is not a portable application. Before manually reinstalling or uninstalling, quit the widget and temporarily disable **Start with Codex** to release the watcher executable.
+
+The 48×84 DIP native widget docks near the bottom of Codex's left rail. This is a separate window that follows Codex, not an injected sidebar component. Drag its top grip to move it; click to open details; press Escape to close the entire Electron detail process.
+
+**Show only in Codex**, available in the tray and panel settings, is on by default. The widget hides when Codex is minimized, closed, or another app becomes active. Turn it off to also show the widget on the desktop and over other apps; it retains its last position while Codex is minimized or closed. Changes apply immediately and persist independently of **Start with Codex** and **Always on top**. Details can still be opened explicitly from the tray.
 
 Right-click the widget or its tray icon to open the usage panel, refresh, reset position, change always-on-top, choose a time zone or language, configure startup, or quit.
 
@@ -143,6 +159,12 @@ The selected region controls calendar-day boundaries and daylight saving time, i
 Choose **Language → 简体中文 / English** in the panel or tray. The panel, native widget, tray menus, and usage status messages follow the selected language. Language and time zone persist independently across restarts. Existing time-zone and startup preferences are retained on upgrade. Defaults remain Simplified Chinese and `America/Los_Angeles`.
 
 Click **Statistics time zone** to open the searchable list. Selecting a region saves and applies it immediately, then closes the list. To use a custom IANA time zone, type it in the same search field and select the matching entry. No separate Save button is needed.
+
+### Check for updates from the tray
+
+Right-click the widget or tray icon and choose **Check for updates**. When a newer stable GitHub release is available, choose **Download and install v…**. The menu shows download progress and offers cancellation. After SHA-256 verification, ModelTide closes its details window, widget and startup watcher, updates in the same directory, then restarts. Preferences and the usage index are retained. Failed downloads can be retried; unverified installers are never launched.
+
+Checks contact this project's GitHub Release only when requested. There is no periodic background check, no usage/chat upload, no automatic prerelease installation and no downgrade. The tray menu displays the current application version. Older builds without the updater need a one-time manual upgrade to a build that includes it.
 
 ### Usage accounting
 
@@ -190,6 +212,8 @@ npm run test:ui
 npm run package
 npm run test:packaged
 npm run installer
+npm run test:updater
+npm run test:update-install
 ```
 
 `npm run test:native` additionally exercises the watcher and requires Codex to be running. Quit running release executables before rebuilding them. The bundled Node runtime uses the build machine's version and includes its license.

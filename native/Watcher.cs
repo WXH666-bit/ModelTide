@@ -34,8 +34,10 @@ class Watcher {
     bool fresh;
     using (var mutex = new Mutex(true, "Local\\" + id + "-watcher", out fresh)) {
       if (!fresh) return;
+      using (var updating = new EventWaitHandle(false, EventResetMode.ManualReset, "Local\\" + id + "-updating")) {
       bool hadCodex = false;
       while (true) {
+        if (updating.WaitOne(0)) return;
         // Settings can briefly be incomplete while the collector saves a tray change.
         try { var cfg = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(data, "settings.json"))); if (cfg == null || !cfg.ContainsKey("followCodex")) { Thread.Sleep(2000); continue; } if (!Convert.ToBoolean(cfg["followCodex"])) return; }
         catch (IOException) { Thread.Sleep(2000); continue; }
@@ -47,7 +49,8 @@ class Watcher {
           if (!running) { try { Process.Start(new ProcessStartInfo(Path.Combine(root, "ModelTide.exe")) { UseShellExecute = false, CreateNoWindow = true }); } catch {} }
         }
         hadCodex = codex;
-        Thread.Sleep(2000);
+        if (updating.WaitOne(2000)) return;
+      }
       }
     }
   }

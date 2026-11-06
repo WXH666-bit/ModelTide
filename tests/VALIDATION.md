@@ -1,5 +1,30 @@
 # Validation
 
+## v0.1.3 — updater, install location and widget visibility
+
+Input: release changes based on `dcc2291`, package version `0.1.3`, built in `E:/projects/ModelTide`. Dependencies and earlier unchanged accounting checks were reused.
+
+- `npm run typecheck`, `npm run package`, `npm run installer`: passed for the final build.
+- `npm run test:updater`: 37 checks passed for stable version metadata. The updater checks and installer coordination described in the development entry below remain covered.
+- `npm run test:visibility`: 8 native policy cases passed: Codex active, another app active, Codex absent/minimized, and the corresponding desktop-visible modes.
+- `npm run test:native`, `npm run test:ui`, and `node node_modules/tsx/dist/cli.mjs --test tests/locale.test.ts`: passed. Legacy settings default to Codex-only; both language controls persist the new flag and restore it on reload. Checkbox assertions wait for the asynchronous settings response. Inspected the final Chinese settings screenshot.
+- Inspected the installer directory page with Computer Use and entered `E:/Apps/ModelTide` successfully, then closed the test installer without installing. The unchanged NSIS directory-page input was verified on the development candidate before the stable version build. `InstallDirRegKey` supplies the existing install location; explicit update destinations still use `/D`.
+- `npm run test:update-install`: passed against the final stable installer in the reused isolated directory on E:. Process shutdown/restart, original preferences (including desktop visibility), synthetic usage and cached-installer cleanup passed. Source move exposed stale synthetic SQLite state; the test now resets only that mutable index. E: is exFAT, so the test copies the one disposable installer when hard links are unavailable; it reuses the application/dependencies. A temporary executable file lock on exFAT exposed an unhandled cache-deletion exception; bounded cleanup retries now handle both sharing and access errors without crashing a successful update.
+- The user uninstalled the personal application during this work. Test applications stayed isolated; the personal application was not reinstalled or started. The desktop installer is the deliverable. Existing manual DPI/multiple-monitor/full Codex transition limits still apply; policy tests do not claim live manipulation of Codex.
+
+## Local 0.1.3-dev.1 — tray updater (not pushed or released)
+
+Input: working-tree updater changes based on `dcc2291`, package version `0.1.3-dev.1`. Existing dependencies and UI/accounting regression evidence were reused; accounting and renderer interaction code are unchanged.
+
+- `npm run typecheck`, `npm run build`: passed. Native executables now carry the package's informational version.
+- `npm run test:updater`: 37 checks passed. Covers numeric version comparison, same-version/downgrade suppression, stable promotion from a prerelease, malformed/draft/prerelease metadata, exact repository asset URLs, checksum presence/duplicates, streamed download integrity, truncated/disconnected downloads, cancellation including a stalled stream, partial-file cleanup, rate limiting/retry, NSIS paths with spaces, and update coordination events. Uses synthetic HTTP responses; report in `tests/tmp/updater/report.txt`.
+- `node node_modules/tsx/dist/cli.mjs --test tests/locale.test.ts`: 2/2 passed.
+- `npm run test:native` and `npm run test:packaged`: passed, including watcher/manual-quit behavior, preserved English/Beijing preferences, bundled Node with an empty PATH, details and clean exit.
+- `npm run installer` and `npm run test:update-install`: passed with the real NSIS installer. One isolated runtime in `tests/tmp/update-install/app with spaces` was necessary because the normal unpacked runtime is the user's application. The test reuses that install, hard-links the installer to avoid duplicating the archive, opens details, runs the verified helper, waits for native/watcher/collector/details shutdown, updates in place, and verifies a new collector PID, unchanged preferences, the same synthetic usage total, automatic restart, and removal of the installer cache link. No production settings, logs, startup registry values or installed-app registration were changed by this test. Report in `tests/tmp/update-install/report.json`.
+- Inspected the English native tray: current development version and Check for updates are visible. Downloads and installer application use the native process/helper only; Electron is not required to check updates.
+- A transient connection reset fetching the build-time Node license was resolved by retrying that packaging stage only. No dependency tree or test environment was recopied for the retry.
+- Restored the local production widget and watcher using the existing settings. No commit, push, version tag, or GitHub Release was created for this work. Live installation of an unpublished future GitHub release is not claimed; network download cases are synthetic and the installer/restart test uses the local built installer.
+
 ## v0.1.2 — unified, immediate-save time-zone picker
 
 Input: changes on top of `cdc54934a86209c8ab42201610e001bef7fb8181`, recorded in the v0.1.2 commit. Only renderer interaction, shared copy, documentation and UI checks changed; existing dependencies and accounting tests are reused.

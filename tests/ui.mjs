@@ -40,6 +40,10 @@ try {
   await page.waitForFunction(() => document.querySelector('.total-line strong')?.textContent === '—');
   assert.match(await page.locator('.empty').textContent(), /暂无用量记录/);
   await page.getByRole('button', { name: '设置', exact: true }).click();
+  assert.equal(await page.getByRole('checkbox', { name: '仅在 Codex 中显示', exact: true }).isChecked(), true);
+  await page.getByRole('checkbox', { name: '仅在 Codex 中显示', exact: true }).click();
+  await page.waitForFunction(async () => (await window.modeltide.state()).settings.onlyInCodex === false);
+  await page.waitForFunction(() => document.querySelector('.settings input[type=checkbox]')?.checked === false);
   await page.getByRole('button', { name: /^统计时区 / }).click();
   await page.getByLabel('搜索地区或时区').fill('北京');
   await page.getByRole('button', { name: '北京时间 · 北京 / 上海 Asia/Shanghai' }).click();
@@ -57,6 +61,7 @@ try {
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('combobox', { name: '界面语言' }).selectOption('en');
   await page.getByRole('heading', { name: 'Widget settings' }).waitFor();
+  assert.equal(await page.getByRole('checkbox', { name: 'Show only in Codex', exact: true }).isChecked(), false);
   assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
   await page.getByRole('button', { name: /^Statistics time zone / }).click();
   await page.getByLabel('Search region or time zone').fill('Kathmandu');
@@ -85,9 +90,13 @@ try {
   await page.screenshot({ path: join(root, 'settings-en.png') });
   const persisted = JSON.parse(await (await import('node:fs/promises')).readFile(join(root, 'data/settings.json'), 'utf8'));
   assert.equal(persisted.language, 'en'); assert.equal(persisted.timezone, 'Asia/Shanghai');
+  assert.equal(persisted.onlyInCodex, false);
   await page.reload();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /^Statistics time zone Beijing/ }).waitFor();
+  assert.equal(await page.getByRole('checkbox', { name: 'Show only in Codex', exact: true }).isChecked(), false);
+  await page.getByRole('checkbox', { name: 'Show only in Codex', exact: true }).click();
+  await page.waitForFunction(async () => (await window.modeltide.state()).settings.onlyInCodex === true);
   await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('zh-CN');
   await page.getByRole('heading', { name: '挂件设置' }).waitFor();
   await page.getByRole('button', { name: '设置', exact: true }).click();

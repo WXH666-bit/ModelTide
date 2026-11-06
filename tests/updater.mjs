@@ -1,0 +1,13 @@
+import { execFileSync } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+const root = resolve('tests/tmp/updater');
+await mkdir(root, { recursive: true });
+const framework = 'C:/Windows/Microsoft.NET/Framework64/v4.0.30319';
+const { version } = JSON.parse(await readFile('package.json', 'utf8'));
+await writeFile(join(root, 'Version.cs'), `[assembly: System.Reflection.AssemblyInformationalVersion(${JSON.stringify(version)})]\n`);
+const executable = join(root, 'UpdaterTests.exe');
+execFileSync(`${framework}/csc.exe`, ['/nologo', '/codepage:65001', '/target:exe', `/out:${executable}`, `/resource:${resolve('src/localization.json')},ModelTide.locales.json`, ...['System.dll', 'System.Core.dll', 'System.Net.Http.dll', 'System.Web.Extensions.dll', 'System.Windows.Forms.dll'].map(p => `/reference:${framework}/${p}`), ...['tests/UpdaterTests.cs', 'native/UpdateClient.cs', 'native/UpdateInstaller.cs', 'native/Locale.cs', join(root, 'Version.cs')].map(p => resolve(p))], { stdio: 'inherit', windowsHide: true });
+const output = execFileSync(executable, [root], { encoding: 'utf8', windowsHide: true });
+await writeFile(join(root, 'report.txt'), `Input version: ${version}\nCommand: npm run test:updater\n${output}`);
+console.log(output.trim());

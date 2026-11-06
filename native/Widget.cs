@@ -24,8 +24,11 @@ namespace ModelTide {
     public static string Root = AppDomain.CurrentDomain.BaseDirectory;
     public static JavaScriptSerializer Json = new JavaScriptSerializer();
     [STAThread] public static void Main() {
+      string[] args = Environment.GetCommandLineArgs();
+      if (args.Length == 3 && args[1] == "--apply-update") { Environment.ExitCode = UpdateInstaller.Run(args[2]); return; }
       string source = Environment.GetEnvironmentVariable("MODELTIDE_DATA_DIR") ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
       using (var sha = SHA256.Create()) Pipe = "modeltide-" + BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(source))).Replace("-", "").ToLowerInvariant().Substring(0, 16);
+      if (UpdateInstaller.IsUpdating(Pipe)) return;
       bool fresh;
       using (var mutex = new Mutex(true, "Local\\" + Pipe, out fresh)) {
         if (!fresh) { try { Rpc("open", null).Wait(2500); } catch {} return; }
@@ -55,12 +58,19 @@ namespace ModelTide {
     private readonly DispatcherTimer follow = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
     private readonly DispatcherTimer poll = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
     private Forms.NotifyIcon tray;
-    private Forms.ToolStripMenuItem followItem, startupItem, topItem;
+    private Forms.ToolStripMenuItem followItem, startupItem, topItem, codexOnlyItem;
+    private Forms.ToolStripMenuItem updateItem, cancelUpdateItem;
+    private ReleaseUpdate availableUpdate;
+    private CancellationTokenSource updateCancellation;
+    private string updatePhase;
+    private int downloadPercent;
+    private readonly EventWaitHandle updateSignal = new EventWaitHandle(false, EventResetMode.ManualReset, UpdateInstaller.EventName(Entry.Pipe));
     private readonly Dictionary<string, Forms.ToolStripMenuItem> zoneItems = new Dictionary<string, Forms.ToolStripMenuItem>();
     private Process collector, detail;
     private IntPtr hwnd, target;
     private DateTime searchAfter = DateTime.MinValue;
-    private bool dragging, querying, closing, everAttached;
+    private bool dragging, querying, closing;
+    private bool onlyInCodex = true;
     private double? offsetX, offsetY;
     private long commandSequence;
     private Native.RECT targetRect;
@@ -76,7 +86,7 @@ namespace ModelTide {
         if (e.GetPosition(face).Y < 11) {
           dragging = true;
           try { DragMove(); } finally { dragging = false; }
-          if (target != IntPtr.Zero) {
+          if (target != IntPtr.Zero && Native.IsWindowVisible(target) && !Native.IsIconic(target)) {
             Native.RECT r; Native.GetWindowRect(hwnd, out r); Native.GetWindowRect(target, out targetRect);
             double scale = Native.GetDpiForWindow(target) / 96.0;
             offsetX = (r.left - targetRect.left) / scale; offsetY = (r.top - targetRect.top) / scale;
@@ -85,7 +95,7 @@ namespace ModelTide {
         } else OpenDetail();
       };
       face.MouseRightButtonUp += (s, e) => { if (tray != null) tray.ContextMenuStrip.Show(Forms.Cursor.Position); };
-      Closing += (s, e) => { closing = true; follow.Stop(); poll.Stop(); if (tray != null) tray.Dispose(); if (detail != null) { try { detail.CloseMainWindow(); } catch {} } };
+      Closing += (s, e) => { closing = true; if (updateCancellation != null) updateCancellation.Cancel(); follow.Stop(); poll.Stop(); updateSignal.Dispose(); if (tray != null) tray.Dispose(); if (detail != null) { try { detail.CloseMainWindow(); } catch {} } };
     }
     private void SetupTray() {
       if (tray == null) {
@@ -100,6 +110,8 @@ namespace ModelTide {
       menu.Items.Add(Locale.T("reset"), null, async (s, e) => { offsetX = offsetY = null; try { await Entry.Rpc("settings", new { offset = (object)null }); } catch {} Follow(); });
       menu.Items.Add(new Forms.ToolStripSeparator());
       topItem = new Forms.ToolStripMenuItem(Locale.T("alwaysOnTop")); topItem.Checked = true; topItem.Click += async (s, e) => await Setting(new { alwaysOnTop = !topItem.Checked }); menu.Items.Add(topItem);
+      codexOnlyItem = new Forms.ToolStripMenuItem(Locale.T("onlyInCodex")) { Checked = onlyInCodex, ToolTipText = Locale.T("onlyInCodexHint") };
+      codexOnlyItem.Click += async (s, e) => await Setting(new { onlyInCodex = !onlyInCodex }); menu.Items.Add(codexOnlyItem);
       var zones = new Forms.ToolStripMenuItem(Locale.T("timezone")); zoneItems.Clear();
       foreach (Dictionary<string, object> zone in Locale.Zones) {
         string id = Convert.ToString(zone["id"]);
@@ -117,8 +129,46 @@ namespace ModelTide {
       followItem = new Forms.ToolStripMenuItem(Locale.T("followCodex")); followItem.Click += async (s, e) => await Setting(new { followCodex = !followItem.Checked }); menu.Items.Add(followItem);
       startupItem = new Forms.ToolStripMenuItem(Locale.T("launchAtLogin")); startupItem.Click += async (s, e) => await Setting(new { launchAtLogin = !startupItem.Checked }); menu.Items.Add(startupItem);
       menu.Items.Add(new Forms.ToolStripSeparator());
+      menu.Items.Add(new Forms.ToolStripMenuItem("ModelTide v" + UpdateClient.CurrentVersion) { Enabled = false });
+      updateItem = new Forms.ToolStripMenuItem(); updateItem.Click += async (s, e) => await CheckOrInstallUpdate(); menu.Items.Add(updateItem);
+      cancelUpdateItem = new Forms.ToolStripMenuItem(Locale.T("cancelUpdate")); cancelUpdateItem.Click += (s, e) => { if (updateCancellation != null) updateCancellation.Cancel(); }; menu.Items.Add(cancelUpdateItem);
+      RefreshUpdateMenu();
       menu.Items.Add(Locale.T("quit"), null, (s, e) => Dispatcher.Invoke(new Action(Close)));
       tray.ContextMenuStrip = menu; if (oldMenu != null) oldMenu.Dispose();
+    }
+    private void RefreshUpdateMenu() {
+      if (closing || updateItem == null) return;
+      updateItem.Enabled = updatePhase == null;
+      updateItem.Text = updatePhase == null ? (availableUpdate == null ? Locale.T("checkUpdates") : Locale.T("installUpdate") + " v" + availableUpdate.Version) : Locale.T(updatePhase) + (updatePhase == "downloadingUpdate" ? " " + downloadPercent + "%" : "");
+      cancelUpdateItem.Visible = updatePhase == "checkingUpdate" || updatePhase == "downloadingUpdate";
+    }
+    private async Task CheckOrInstallUpdate() {
+      if (updatePhase != null) return;
+      updateCancellation = new CancellationTokenSource();
+      try {
+        using (var client = new UpdateClient()) {
+          if (availableUpdate == null) {
+            updatePhase = "checkingUpdate"; RefreshUpdateMenu();
+            availableUpdate = await client.Check(updateCancellation.Token);
+            if (!closing) tray.ShowBalloonTip(5000, "ModelTide", availableUpdate == null ? Locale.T("upToDate") + " (v" + UpdateClient.CurrentVersion + ")" : Locale.T("updateAvailable") + " v" + availableUpdate.Version + "\n" + Locale.T("updateTrayHint"), Forms.ToolTipIcon.Info);
+          } else {
+            updatePhase = "downloadingUpdate"; downloadPercent = 0; RefreshUpdateMenu();
+            string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ModelTide", "updates", availableUpdate.Version);
+            var downloaded = await client.Download(availableUpdate, cache, new Progress<int>(percent => { downloadPercent = percent; RefreshUpdateMenu(); }), updateCancellation.Token);
+            var health = await Entry.Rpc("health", null);
+            updatePhase = "installingUpdate"; RefreshUpdateMenu();
+            tray.ShowBalloonTip(4000, "ModelTide", Locale.T("installingUpdate"), Forms.ToolTipIcon.Info);
+            var plan = new InstallPlan { Installer = downloaded.Installer, Sha256 = downloaded.Sha256, Directory = Entry.Root, Identity = Entry.Pipe, Language = Locale.Language, Version = availableUpdate.Version, CollectorPid = Convert.ToInt32(health["pid"]) };
+            using (var helper = UpdateInstaller.Launch(plan)) await Task.Run(() => helper.WaitForExit());
+          }
+        }
+      } catch (OperationCanceledException) {
+        if (!closing) tray.ShowBalloonTip(4000, "ModelTide", Locale.T(updateCancellation.IsCancellationRequested ? "updateCancelled" : "updateTimedOut"), Forms.ToolTipIcon.Info);
+      } catch (Exception e) {
+        if (!closing) tray.ShowBalloonTip(6000, "ModelTide", Locale.T("updateFailed") + "\n" + e.Message, Forms.ToolTipIcon.Warning);
+      } finally {
+        updateCancellation.Dispose(); updateCancellation = null; updatePhase = null; RefreshUpdateMenu();
+      }
     }
     private async Task Setting(object value) {
       try { await Entry.Rpc("settings", value); await Update(); }
@@ -149,6 +199,7 @@ namespace ModelTide {
         if (settings.ContainsKey("followCodex")) followItem.Checked = Convert.ToBoolean(settings["followCodex"]);
         startupItem.Checked = Convert.ToBoolean(settings["launchAtLogin"]);
         if (settings.ContainsKey("alwaysOnTop")) { topItem.Checked = Convert.ToBoolean(settings["alwaysOnTop"]); Topmost = topItem.Checked; }
+        onlyInCodex = !settings.ContainsKey("onlyInCodex") || Convert.ToBoolean(settings["onlyInCodex"]); codexOnlyItem.Checked = onlyInCodex;
         var saved = settings["offset"] as Dictionary<string, object>;
         if (!dragging && saved != null) { offsetX = Convert.ToDouble(saved["x"]); offsetY = Convert.ToDouble(saved["y"]); }
         string amount = summary == null ? (Convert.ToString(coverage["state"]) == "indexing" ? "···" : "—") : Compact(Convert.ToDouble(summary["total"]));
@@ -156,6 +207,7 @@ namespace ModelTide {
         tooltip += "\n" + Locale.T("timezone") + ": " + settings["timezone"] + "\n" + coverage["message"] + "\n" + Locale.T("clickHint");
         if (result.ContainsKey("error") && result["error"] != null) tooltip = Convert.ToString(result["error"]);
         face.Set(amount, tooltip);
+        Follow();
         long seq = Convert.ToInt64(result["commandSequence"]);
         if (seq != commandSequence) {
           commandSequence = seq;
@@ -170,6 +222,7 @@ namespace ModelTide {
       return (value / scale).ToString(value / scale >= 100 || scale == 1 ? "0" : "0.#", CultureInfo.InvariantCulture) + unit;
     }
     private void OpenDetail() {
+      if (updatePhase == "installingUpdate" || UpdateInstaller.IsUpdating(Entry.Pipe)) return;
       if (detail != null) { try { if (!detail.HasExited) { Native.SetForegroundWindow(detail.MainWindowHandle); return; } } catch {} }
       try {
         string exe = Path.Combine(Entry.Root, "ModelTide-Details.exe");
@@ -184,6 +237,7 @@ namespace ModelTide {
       } catch (Exception e) { face.Set("!", Locale.T("detailFailed") + ": " + e.Message); Show(); }
     }
     private void Follow() {
+      if (!closing && updateSignal.WaitOne(0)) { Close(); return; }
       if (closing || dragging) return;
       if (detail != null) { try { if (!detail.HasExited) { if (IsVisible) Hide(); return; } } catch {} detail = null; }
       if (standalone) { if (!IsVisible) Show(); if (!Native.IsWindowVisible(hwnd)) Native.ShowWindow(hwnd, 4); return; }
@@ -194,10 +248,11 @@ namespace ModelTide {
         else if (target == IntPtr.Zero) Native.EnumWindows((h, p) => { if (IsCodex(h)) { target = h; return false; } return true; }, IntPtr.Zero);
         searchAfter = DateTime.UtcNow.AddSeconds(2);
       }
-      if (target == IntPtr.Zero) { if (everAttached && IsVisible) Hide(); return; }
-      everAttached = true;
       var foreground = Native.GetForegroundWindow();
-      if (Native.IsIconic(target) || !Native.IsWindowVisible(target) || (foreground != target && foreground != hwnd)) { if (IsVisible) Hide(); return; }
+      bool usable = target != IntPtr.Zero && Native.IsWindowVisible(target) && !Native.IsIconic(target);
+      if (!Native.ShouldShowWidget(onlyInCodex, usable, foreground == target || foreground == hwnd)) { if (IsVisible) Hide(); return; }
+      // With Codex minimized/closed, desktop mode keeps the widget at its last position.
+      if (!usable) { if (!IsVisible) Show(); if (!Native.IsWindowVisible(hwnd)) Native.ShowWindow(hwnd, 4); return; }
       if (!Native.GetWindowRect(target, out targetRect)) return;
       double dpi = Native.GetDpiForWindow(target) / 96.0;
       double dockX = offsetX ?? 2, dockY = offsetY ?? Math.Max(80, (targetRect.bottom - targetRect.top) / dpi - 188);
@@ -250,6 +305,7 @@ namespace ModelTide {
     }
   }
   public static class Native {
+    public static bool ShouldShowWidget(bool onlyInCodex, bool codexUsable, bool codexOrWidgetActive) { return !onlyInCodex || (codexUsable && codexOrWidgetActive); }
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int left, top, right, bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct MONITORINFO { public int cbSize; public RECT rcMonitor, rcWork; public uint dwFlags; }
     public delegate bool EnumProc(IntPtr hwnd, IntPtr param);

@@ -11,7 +11,7 @@ import type { Settings } from './types';
 import { coverageText, t, translateError, validLanguage } from './locale';
 const run = promisify(execFile);
 const dataDir = process.env.MODELTIDE_DATA_DIR || join(process.env.APPDATA || homedir(), 'ModelTide');
-let settings: Settings = { timezone: 'America/Los_Angeles', language: 'zh-CN', offset: null, launchAtLogin: false, followCodex: false, alwaysOnTop: true };
+let settings: Settings = { timezone: 'America/Los_Angeles', language: 'zh-CN', offset: null, launchAtLogin: false, followCodex: false, alwaysOnTop: true, onlyInCodex: true };
 let store: UsageStore, error: string | undefined, quitting = false;
 let command = '', commandSequence = 0;
 const owner = Number(process.argv.find(a => a.startsWith('--owner-pid='))?.split('=')[1]);
@@ -41,6 +41,7 @@ async function updateSettings(update: Partial<Settings>) {
     settings.followCodex = Boolean(update.followCodex);
   }
   if (update.alwaysOnTop !== undefined) settings.alwaysOnTop = Boolean(update.alwaysOnTop);
+  if (update.onlyInCodex !== undefined) settings.onlyInCodex = Boolean(update.onlyInCodex);
   if (update.language !== undefined) settings.language = update.language;
   await persist();
   if (watcher && settings.followCodex) { const child = spawn(watcher, [], { windowsHide: true, detached: true, stdio: 'ignore' }); child.unref(); }

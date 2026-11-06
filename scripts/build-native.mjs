@@ -1,10 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, copyFileSync } from 'node:fs';
+import { mkdirSync, copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 const output = process.argv[2] || 'dist';
 mkdirSync(output, { recursive: true });
 const framework = 'C:/Windows/Microsoft.NET/Framework64/v4.0.30319';
-const refs = ['System.dll', 'System.Core.dll', 'System.Web.Extensions.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll', 'WPF/WindowsBase.dll', 'WPF/PresentationCore.dll', 'WPF/PresentationFramework.dll', 'System.Xaml.dll'];
-execFileSync(`${framework}/csc.exe`, ['/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/optimize+', `/resource:${resolve('src/localization.json')},ModelTide.locales.json`, `/win32icon:${resolve('src/ui/assets/modeltide.ico')}`, `/win32manifest:${resolve('native/app.manifest')}`, `/out:${resolve(output, 'ModelTide.exe')}`, ...refs.map(p => `/reference:${framework}/${p}`), resolve('native/Widget.cs'), resolve('native/Locale.cs')], { stdio: 'inherit' });
+const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+mkdirSync('tests/tmp/native-build', { recursive: true });
+const versionSource = resolve('tests/tmp/native-build/Version.cs');
+writeFileSync(versionSource, `[assembly: System.Reflection.AssemblyInformationalVersion(${JSON.stringify(version)})]\n`);
+const refs = ['System.dll', 'System.Core.dll', 'System.Net.Http.dll', 'System.Web.Extensions.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll', 'WPF/WindowsBase.dll', 'WPF/PresentationCore.dll', 'WPF/PresentationFramework.dll', 'System.Xaml.dll'];
+execFileSync(`${framework}/csc.exe`, ['/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/optimize+', `/resource:${resolve('src/localization.json')},ModelTide.locales.json`, `/win32icon:${resolve('src/ui/assets/modeltide.ico')}`, `/win32manifest:${resolve('native/app.manifest')}`, `/out:${resolve(output, 'ModelTide.exe')}`, ...refs.map(p => `/reference:${framework}/${p}`), resolve('native/Widget.cs'), resolve('native/Locale.cs'), resolve('native/UpdateClient.cs'), resolve('native/UpdateInstaller.cs'), versionSource], { stdio: 'inherit' });
 copyFileSync('native/ModelTide.exe.config', `${output}/ModelTide.exe.config`);
 execFileSync(`${framework}/csc.exe`, ['/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/optimize+', `/out:${resolve(output, 'ModelTide-Watcher.exe')}`, `/reference:${framework}/System.Web.Extensions.dll`, resolve('native/Watcher.cs')], { stdio: 'inherit' });

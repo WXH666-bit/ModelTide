@@ -34,6 +34,10 @@ jobs:
         run: npm run package
       - name: UI and MCP regression tests
         run: npm run test:ui
+      - name: Native updater tests
+        run: npm run test:updater
+      - name: Widget visibility tests
+        run: npm run test:visibility
       - name: Install NSIS if needed
         shell: pwsh
         run: |
@@ -52,6 +56,12 @@ jobs:
           if ($installer.ExitCode -ne 0) { throw "Installer exited $($installer.ExitCode)" }
           $env:MODELTIDE_PACKAGED_ROOT = $installRoot
           npm run test:packaged
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: In-place update and restart smoke test
+        shell: pwsh
+        run: |
+          $env:MODELTIDE_PACKAGED_ROOT = Join-Path $PWD 'tests/tmp/installed'
+          npm run test:update-install
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Package local plugin and checksums
         shell: pwsh

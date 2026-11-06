@@ -28,6 +28,10 @@ try {
   assert.equal(watcher.exitCode, null, 'watcher survives a partially written setting');
   await writeFile(settingsPath, JSON.stringify(settings));
   assert.equal((await request('state')).settings.language, 'zh-CN', 'legacy settings migrate to Chinese');
+  assert.equal((await request('state')).settings.onlyInCodex, true, 'legacy settings retain Codex-only visibility');
+  await request('settings', { onlyInCodex: false });
+  assert.equal((await request('state')).settings.onlyInCodex, false);
+  assert.equal(JSON.parse(await readFile(settingsPath, 'utf8')).onlyInCodex, false);
   await request('settings', { timezone: 'Asia/Shanghai', language: 'en', alwaysOnTop: false });
   assert.equal((await request('state')).settings.timezone, 'Asia/Shanghai');
   assert.equal((await request('state')).settings.alwaysOnTop, false);

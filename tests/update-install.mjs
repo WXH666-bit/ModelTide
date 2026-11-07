@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile, copyFile, link, unlink, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -16,7 +16,9 @@ await mkdir(join(codex, 'sessions'), { recursive: true }); await mkdir(data, { r
 for (const name of ['usage.sqlite', 'usage.sqlite-wal', 'usage.sqlite-shm']) {
   await unlink(join(data, name)).catch(error => { if (error.code !== 'ENOENT') throw error; });
 }
-const env = { ...process.env, MODELTIDE_DATA_DIR: data, MODELTIDE_CODEX_DIR: codex, MODELTIDE_TEST_STANDALONE: '1' };
+const stub = join(root, 'CodexStub.exe');
+execFileSync('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe', ['/nologo', '/target:winexe', `/out:${stub}`, resolve('tests/CodexStub.cs')]);
+const env = { ...process.env, MODELTIDE_DATA_DIR: data, MODELTIDE_CODEX_DIR: codex, MODELTIDE_TEST_STANDALONE: '1', MODELTIDE_TEST_CODEX_EXE: stub };
 delete env.ELECTRON_RUN_AS_NODE;
 const identity = 'modeltide-' + createHash('sha256').update(data).digest('hex').slice(0, 16);
 const pipe = '\\\\.\\pipe\\' + identity;
@@ -43,6 +45,7 @@ await writeFile(join(codex, 'sessions/fixture.jsonl'), [
   { type: 'turn_context', payload: { model: 'fixture-model' } },
   { type: 'event_msg', timestamp: new Date().toISOString(), payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 100, output_tokens: 20 } } } }
 ].map(JSON.stringify).join('\n') + '\n');
+const fakeCodex = launch(stub);
 const widget = launch(join(appRoot, 'ModelTide.exe'));
 const watcher = launch(join(appRoot, 'ModelTide-Watcher.exe'));
 let helper, newCollector;
@@ -82,5 +85,6 @@ try {
   newCollector ??= remaining?.pid;
   await request('quit').catch(() => {});
   await until(() => { if (!newCollector) return true; try { process.kill(newCollector, 0); return false; } catch { return true; } }).catch(() => {});
+  fakeCodex.kill();
   if (widget.exitCode === null) widget.kill(); if (watcher.exitCode === null) watcher.kill();
 }

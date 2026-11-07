@@ -69,9 +69,11 @@ const server = createServer(socket => {
       else if (method === 'reset') { settings.offset = null; await persist(); command = 'reset'; commandSequence++; result = { reset: true }; }
       else if (method === 'open') { command = 'open'; commandSequence++; result = { opened: true }; }
       else if (method === 'quit') { command = 'quit'; commandSequence++; result = { quitting: true }; }
-      else if (method === 'health') result = { ready: true, indexing: store.indexing, memory: process.memoryUsage(), pid: process.pid, error };
+      else if (method === 'shutdown' && owner && params?.ownerPid === owner) result = { stopping: true };
+      else if (method === 'health') result = { ready: true, indexing: store.indexing, memory: process.memoryUsage(), pid: process.pid, ownerPid: owner || null, error };
       else throw new Error('未知方法');
       socket.end(JSON.stringify({ result }) + '\n');
+      if (method === 'shutdown') void quit();
     } catch (e: any) { socket.end(JSON.stringify({ error: translateError(e.message, settings.language) }) + '\n'); }
   });
 });

@@ -22,11 +22,11 @@ Logo 原图为 `src/ui/assets/logo-source.png`，轻量显示版本为 `logo.png
 
 挂件为 48×84 DIP，默认贴在 Codex 最左侧窄栏的左下空白处，避开底部头像和按钮；采用独立窗口跟随实现视觉贴合，不修改 Codex 客户端。右击挂件或托盘图标可打开基本设置。
 
-托盘和详情设置中的“仅在 Codex 中显示”默认开启：Codex 在前台时显示常驻挂件，最小化、关闭或切换到其他应用时隐藏。关闭此选项后，桌面和其他应用上也能显示；Codex 关闭或最小化时保留挂件最后的位置。此开关立即生效并保存，和“跟随 Codex 启动”“窗口置顶”独立；详情面板仍可主动从托盘打开。
+托盘和详情设置中的“仅在 Codex 中显示”默认开启：Codex 在前台时显示常驻挂件，最小化、关闭或切换到其他应用时隐藏。关闭此选项后，桌面和其他应用上也能显示；Codex 关闭或最小化时保留挂件最后的位置（若开启跟随启动，Codex 完全退出时会关闭挂件）。此开关立即生效并保存，和“跟随 Codex 启动”“窗口置顶”独立；详情面板仍可主动从托盘打开。
 
 托盘包含展开面板、刷新、重置位置、置顶、时区、跟随 Codex 启动、开机直接启动、检查更新和退出。
 
-“跟随 Codex 启动”开启后，会添加当前用户启动项 ModelTideWatcher，并运行不加载 WPF/Electron 的轻量侦测器；它每 2 秒检查 Codex 窗口出现，随后启动挂件。手动退出挂件后，本次 Codex 会话不会立即重启它；下一次 Codex 打开时再启动。关闭该开关会移除启动项，侦测器在下一轮检查退出。“开机直接启动挂件”是独立选项。两个启动选项默认关闭，不需要管理员权限。
+“跟随 Codex 启动”开启后，会添加当前用户启动项 ModelTideWatcher，并运行不加载 WPF/Electron 的轻量侦测器；它每 2 秒检查 Codex 进程，随后启动挂件。Codex 完全退出后，挂件、详情和统计服务也退出，只保留侦测器；再次打开 Codex 时恢复。最小化或切换应用不会触发退出；多个 Codex 实例需要全部退出。手动退出挂件后，本次 Codex 会话不会立即重启它；下一次 Codex 打开时再启动。关闭该开关会移除启动项，侦测器在下一轮检查退出。“开机直接启动挂件”是独立选项。两个启动选项默认关闭，不需要管理员权限。
 
 支持今天、近 7 天、近 30 天、本月和自定义日期（单次最多 367 个自然日）；近 N 天包含今天。默认时区 America/Los_Angeles，可在设置中改为 Asia/Shanghai 等 IANA 时区。开机启动默认关闭。
 
@@ -148,7 +148,7 @@ The 48×84 DIP native widget docks near the bottom of Codex's left rail. This is
 
 Right-click the widget or its tray icon to open the usage panel, refresh, reset position, change always-on-top, choose a time zone or language, configure startup, or quit.
 
-**Start with Codex** runs a lightweight watcher and registers the current-user `ModelTideWatcher` sign-in entry. It checks every two seconds and launches the widget when Codex appears. Manually quitting the widget does not immediately relaunch it in the same Codex session; the next Codex launch can start it again. Disabling this setting removes the sign-in entry and stops the watcher on its next check. **Start widget at sign-in** is a separate setting. Both startup options are off by default and require no administrator access.
+**Start with Codex** runs a lightweight watcher and registers the current-user `ModelTideWatcher` sign-in entry. It checks Codex processes every two seconds and launches the widget when Codex starts. When all Codex instances exit, the widget, details and collector exit too, leaving only the watcher. Opening Codex again restarts them. Minimizing Codex or switching apps does not shut them down. Manually quitting the widget does not immediately relaunch it in the same Codex session; the next Codex launch can start it again. Disabling this setting removes the sign-in entry and stops the watcher on its next check. **Start widget at sign-in** is a separate setting. Both startup options are off by default and require no administrator access.
 
 ### Time zones and languages
 
@@ -216,7 +216,7 @@ npm run test:updater
 npm run test:update-install
 ```
 
-`npm run test:native` additionally exercises the watcher and requires Codex to be running. Quit running release executables before rebuilding them. The bundled Node runtime uses the build machine's version and includes its license.
+`npm run test:native` exercises startup, shutdown, multiple instances, rapid restart and update coordination using an isolated synthetic Codex process; it does not close the real Codex app. Quit running release executables before rebuilding them. The bundled Node runtime uses the build machine's version and includes its license.
 
 Resident processes are a native WPF widget and a Node collector. Electron exists only while details are open. Logs are read in 256 KiB chunks, the SQLite page cache is limited to 4 MiB, and the Node old-generation heap is limited to 64 MiB. Validation notes are in `tests/VALIDATION.md`.
 

@@ -9,6 +9,11 @@ app.commandLine.appendSwitch('disable-features', 'MediaRouter');
 app.setPath('userData', process.env.MODELTIDE_DATA_DIR || join(app.getPath('appData'), 'ModelTide'));
 const locked = app.requestSingleInstanceLock();
 if (!locked) app.quit();
+const widgetOwner = Number(process.argv.find(a => a.startsWith('--widget-owner='))?.split('=')[1]);
+// Also covers closing Codex while the detail window is still being created.
+const ownerTimer = locked && widgetOwner ? setInterval(() => {
+  try { process.kill(widgetOwner, 0); } catch { app.quit(); }
+}, 2000) : undefined;
 let win: BrowserWindow, collector: ChildProcess | undefined, timer: NodeJS.Timeout;
 let dragging: { cursor: Electron.Point; origin: Electron.Point } | null = null, dragTimer: NodeJS.Timeout;
 function stopDragging() { clearInterval(dragTimer); dragging = null; }
@@ -42,4 +47,4 @@ if (locked) app.whenReady().then(async () => {
   app.on('second-instance', () => { win.show(); win.focus(); });
 }).catch(e => { console.error(e); app.quit(); });
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { clearInterval(timer); stopDragging(); collector?.kill(); });
+app.on('before-quit', () => { clearInterval(timer); clearInterval(ownerTimer); stopDragging(); collector?.kill(); });

@@ -1,5 +1,19 @@
 # Validation
 
+## v0.1.4 — exit and restart with Codex
+
+Input: changes based on `5b211e03edc5aeffdca457084630c36cd4b5efea`, package version `0.1.4`, built in `E:/projects/ModelTide`. Existing dependencies and isolated test installations were reused. Only mutable synthetic SQLite state is reset between native test runs.
+
+- `npm run typecheck`, `npm test` (13 cases), and `npm run package`: passed.
+- `npm run test:native`: passed using an isolated, windowless Codex stub. Covers no widget while Codex is absent, process-based detection, multiple instances, last-instance shutdown, collector and widget exit, detail exit, reopening, quick restart, manual-quit suppression, partial settings writes, restored saved follow preference, disabling the watcher, and coordination with the update event. Synthetic usage remains 120 tokens across a restart. The real Codex app and personal installation were not closed or modified.
+- The first native test attempt exposed a test harness mistake: a process terminated by a signal can have `exitCode === null`. The test now checks process liveness. After correction and mutable-index reset, the final suite passed.
+- `npm run test:ui`, `npm run test:packaged`, `npm run test:visibility` (8 cases), and `npm run test:updater` (37 cases): passed. The visibility policy remains independent of the follow-Codex lifecycle option.
+- After the synthetic Codex instance exited, the remaining watcher measured 35,577,856 bytes working set (~33.9 MiB) and 27,947,008 bytes private memory (~26.7 MiB). This is a point-in-time measurement, not a guaranteed upper limit. Neither the widget nor collector remained alive.
+- `npm run installer` and `npm run test:update-install`: passed with the final v0.1.4 installer, reusing the isolated installation. Settings, 120 synthetic tokens, process coordination, automatic restart and installer-cache cleanup all passed. No personal installation or startup registry values were changed.
+- The lifecycle test is now part of GitHub Actions and does not require Codex installed on the runner. The installer-update fixture also uses a synthetic Codex process so follow-Codex behavior is exercised in CI.
+
+Existing manual DPI, multiple-monitor and Windows sign-in acceptance limits remain. Synthetic process tests do not claim a live end-to-end shutdown of the user's Codex.
+
 ## v0.1.3 — updater, install location and widget visibility
 
 Input: release changes based on `dcc2291`, package version `0.1.3`, built in `E:/projects/ModelTide`. Dependencies and earlier unchanged accounting checks were reused.

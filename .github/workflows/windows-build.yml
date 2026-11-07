@@ -36,6 +36,8 @@ jobs:
         run: npm run test:ui
       - name: Native updater tests
         run: npm run test:updater
+      - name: Codex lifecycle tests
+        run: npm run test:native
       - name: Widget visibility tests
         run: npm run test:visibility
       - name: Install NSIS if needed

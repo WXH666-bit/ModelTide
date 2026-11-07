@@ -31,7 +31,7 @@ namespace ModelTide {
       if (UpdateInstaller.IsUpdating(Pipe)) return;
       bool fresh;
       using (var mutex = new Mutex(true, "Local\\" + Pipe, out fresh)) {
-        if (!fresh) { try { Rpc("open", null).Wait(2500); } catch {} return; }
+        if (!fresh) { if (Array.IndexOf(args, "--watcher") < 0) { try { Rpc("open", null).Wait(2500); } catch {} } return; }
         RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         app.Run(new Widget());
@@ -65,11 +65,13 @@ namespace ModelTide {
     private string updatePhase;
     private int downloadPercent;
     private readonly EventWaitHandle updateSignal = new EventWaitHandle(false, EventResetMode.ManualReset, UpdateInstaller.EventName(Entry.Pipe));
+    private readonly EventWaitHandle codexStopped = new EventWaitHandle(false, EventResetMode.ManualReset, "Local\\" + Entry.Pipe + "-codex-stopped");
     private readonly Dictionary<string, Forms.ToolStripMenuItem> zoneItems = new Dictionary<string, Forms.ToolStripMenuItem>();
     private Process collector, detail;
     private IntPtr hwnd, target;
     private DateTime searchAfter = DateTime.MinValue;
     private bool dragging, querying, closing;
+    private bool readyToClose, watcherChecked;
     private bool onlyInCodex = true;
     private double? offsetX, offsetY;
     private long commandSequence;
@@ -95,7 +97,22 @@ namespace ModelTide {
         } else OpenDetail();
       };
       face.MouseRightButtonUp += (s, e) => { if (tray != null) tray.ContextMenuStrip.Show(Forms.Cursor.Position); };
-      Closing += (s, e) => { closing = true; if (updateCancellation != null) updateCancellation.Cancel(); follow.Stop(); poll.Stop(); updateSignal.Dispose(); if (tray != null) tray.Dispose(); if (detail != null) { try { detail.CloseMainWindow(); } catch {} } };
+      Closing += async (s, e) => {
+        if (readyToClose) return;
+        e.Cancel = true;
+        if (closing) return;
+        closing = true; Hide();
+        if (updateCancellation != null) updateCancellation.Cancel();
+        follow.Stop(); poll.Stop(); if (tray != null) tray.Dispose();
+        if (detail != null) { try { detail.CloseMainWindow(); } catch {} }
+        // Keep the widget mutex until its collector has flushed SQLite and exited.
+        // The watcher cannot start the next owner against an old named pipe.
+        try { await Entry.Rpc("shutdown", new { ownerPid = Process.GetCurrentProcess().Id }); } catch {}
+        if (collector != null) await Task.Run(() => {
+          try { if (!collector.WaitForExit(5000)) { collector.Kill(); collector.WaitForExit(); } } catch (InvalidOperationException) {}
+        });
+        updateSignal.Dispose(); codexStopped.Dispose(); readyToClose = true; Close();
+      };
     }
     private void SetupTray() {
       if (tray == null) {
@@ -126,7 +143,7 @@ namespace ModelTide {
       chinese.Click += async (s, e) => await Setting(new { language = "zh-CN" });
       english.Click += async (s, e) => await Setting(new { language = "en" });
       languages.DropDownItems.Add(chinese); languages.DropDownItems.Add(english); menu.Items.Add(languages);
-      followItem = new Forms.ToolStripMenuItem(Locale.T("followCodex")); followItem.Click += async (s, e) => await Setting(new { followCodex = !followItem.Checked }); menu.Items.Add(followItem);
+      followItem = new Forms.ToolStripMenuItem(Locale.T("followCodex")) { ToolTipText = Locale.T("followCodexHint") }; followItem.Click += async (s, e) => await Setting(new { followCodex = !followItem.Checked }); menu.Items.Add(followItem);
       startupItem = new Forms.ToolStripMenuItem(Locale.T("launchAtLogin")); startupItem.Click += async (s, e) => await Setting(new { launchAtLogin = !startupItem.Checked }); menu.Items.Add(startupItem);
       menu.Items.Add(new Forms.ToolStripSeparator());
       menu.Items.Add(new Forms.ToolStripMenuItem("ModelTide v" + UpdateClient.CurrentVersion) { Enabled = false });
@@ -189,6 +206,7 @@ namespace ModelTide {
       if (querying || closing) return; querying = true;
       try {
         var result = await Entry.Rpc("snapshot", null);
+        if (closing) return;
         var usage = (Dictionary<string, object>)result["usage"];
         var coverage = (Dictionary<string, object>)usage["coverage"];
         var summary = usage["summary"] as Dictionary<string, object>;
@@ -197,6 +215,15 @@ namespace ModelTide {
         if (language != Locale.Language) { Locale.Language = language; Title = Locale.T("miniTitle"); SetupTray(); face.InvalidateVisual(); }
         foreach (var zone in zoneItems) zone.Value.Checked = zone.Key == Convert.ToString(settings["timezone"]);
         if (settings.ContainsKey("followCodex")) followItem.Checked = Convert.ToBoolean(settings["followCodex"]);
+        if (!watcherChecked) {
+          watcherChecked = true;
+          if (followItem.Checked) {
+            try { using (Mutex.OpenExisting("Local\\" + Entry.Pipe + "-watcher")) {} }
+            catch (WaitHandleCannotBeOpenedException) {
+              Process.Start(new ProcessStartInfo(Path.Combine(Entry.Root, "ModelTide-Watcher.exe")) { UseShellExecute = false, CreateNoWindow = true });
+            }
+          }
+        }
         startupItem.Checked = Convert.ToBoolean(settings["launchAtLogin"]);
         if (settings.ContainsKey("alwaysOnTop")) { topItem.Checked = Convert.ToBoolean(settings["alwaysOnTop"]); Topmost = topItem.Checked; }
         onlyInCodex = !settings.ContainsKey("onlyInCodex") || Convert.ToBoolean(settings["onlyInCodex"]); codexOnlyItem.Checked = onlyInCodex;
@@ -222,13 +249,13 @@ namespace ModelTide {
       return (value / scale).ToString(value / scale >= 100 || scale == 1 ? "0" : "0.#", CultureInfo.InvariantCulture) + unit;
     }
     private void OpenDetail() {
-      if (updatePhase == "installingUpdate" || UpdateInstaller.IsUpdating(Entry.Pipe)) return;
+      if (closing || updatePhase == "installingUpdate" || UpdateInstaller.IsUpdating(Entry.Pipe)) return;
       if (detail != null) { try { if (!detail.HasExited) { Native.SetForegroundWindow(detail.MainWindowHandle); return; } } catch {} }
       try {
         string exe = Path.Combine(Entry.Root, "ModelTide-Details.exe");
         string prefix = "";
         if (!File.Exists(exe)) { exe = Path.GetFullPath(Path.Combine(Entry.Root, "..", "node_modules", "electron", "dist", "electron.exe")); prefix = "\"" + Path.GetFullPath(Path.Combine(Entry.Root, "..")) + "\" "; }
-        var info = new ProcessStartInfo(exe, prefix + "--x=" + Math.Round(Left) + " --y=" + Math.Round(Top)) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Entry.Root };
+        var info = new ProcessStartInfo(exe, prefix + "--x=" + Math.Round(Left) + " --y=" + Math.Round(Top) + " --widget-owner=" + Process.GetCurrentProcess().Id) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Entry.Root };
         info.EnvironmentVariables["MODELTIDE_WIDGET_EXE"] = System.Reflection.Assembly.GetExecutingAssembly().Location;
         info.EnvironmentVariables.Remove("ELECTRON_RUN_AS_NODE");
         detail = Process.Start(info); detail.EnableRaisingEvents = true;
@@ -237,7 +264,7 @@ namespace ModelTide {
       } catch (Exception e) { face.Set("!", Locale.T("detailFailed") + ": " + e.Message); Show(); }
     }
     private void Follow() {
-      if (!closing && updateSignal.WaitOne(0)) { Close(); return; }
+      if (!closing && (updateSignal.WaitOne(0) || codexStopped.WaitOne(0))) { Close(); return; }
       if (closing || dragging) return;
       if (detail != null) { try { if (!detail.HasExited) { if (IsVisible) Hide(); return; } } catch {} detail = null; }
       if (standalone) { if (!IsVisible) Show(); if (!Native.IsWindowVisible(hwnd)) Native.ShowWindow(hwnd, 4); return; }

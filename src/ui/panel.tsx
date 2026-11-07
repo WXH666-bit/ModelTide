@@ -82,7 +82,7 @@ export default function Panel({ host }: { host: HostState }) {
           {zoneError && <p className="error" role="alert">{zoneError}</p>}
         </div>
         <p className="timezone-help">{text('timezoneAutoSave')}</p>
-        {(['onlyInCodex', 'followCodex', 'launchAtLogin', 'alwaysOnTop'] as const).map(key => <label className="checkbox" key={key} title={key === 'onlyInCodex' ? text('onlyInCodexHint') : undefined}><input type="checkbox" checked={host.settings[key]} onChange={e => void change({ [key]: e.target.checked })}/>{text(key)}</label>)}
+        {(['onlyInCodex', 'followCodex', 'launchAtLogin', 'alwaysOnTop'] as const).map(key => <label className="checkbox" key={key} title={key === 'onlyInCodex' ? text('onlyInCodexHint') : key === 'followCodex' ? text('followCodexHint') : undefined}><input type="checkbox" checked={host.settings[key]} onChange={e => void change({ [key]: e.target.checked })}/>{text(key)}</label>)}
         <button className="text-button" onClick={() => void bridge.action('reset')}>{text('reset')}</button>
         <p>{text('startupHint')}</p><p>{text(host.attached ? 'attached' : 'standalone')}</p>
       </section> : <>

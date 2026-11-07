@@ -1,5 +1,5 @@
 {
-  "name": "modeltide", "version": "0.1.3", "private": true,
+  "name": "modeltide", "version": "0.1.4", "private": true,
   "license": "MIT", "author": "WXH666-bit",
   "description": "Local Codex token usage companion", "main": "dist/main.cjs",
   "scripts": {

@@ -67,6 +67,7 @@ namespace ModelTide {
     private readonly EventWaitHandle updateSignal = new EventWaitHandle(false, EventResetMode.ManualReset, UpdateInstaller.EventName(Entry.Pipe));
     private readonly EventWaitHandle codexStopped = new EventWaitHandle(false, EventResetMode.ManualReset, "Local\\" + Entry.Pipe + "-codex-stopped");
     private readonly Dictionary<string, Forms.ToolStripMenuItem> zoneItems = new Dictionary<string, Forms.ToolStripMenuItem>();
+    private readonly Dictionary<string, Forms.ToolStripMenuItem> themeItems = new Dictionary<string, Forms.ToolStripMenuItem>();
     private Process collector, detail;
     private IntPtr hwnd, target;
     private DateTime searchAfter = DateTime.MinValue;
@@ -126,6 +127,14 @@ namespace ModelTide {
       menu.Items.Add(Locale.T("refreshStats"), null, async (s, e) => { try { await Entry.Rpc("refresh", null); await Update(); } catch {} });
       menu.Items.Add(Locale.T("reset"), null, async (s, e) => { offsetX = offsetY = null; try { await Entry.Rpc("settings", new { offset = (object)null }); } catch {} Follow(); });
       menu.Items.Add(new Forms.ToolStripSeparator());
+      var themes = new Forms.ToolStripMenuItem(Locale.T("theme")); themeItems.Clear();
+      foreach (string theme in Theme.Ids) {
+        string id = theme;
+        var item = new Forms.ToolStripMenuItem(Theme.Label(id)) { Checked = id == Theme.Id };
+        item.Click += async (s, e) => await Setting(new { theme = id });
+        themes.DropDownItems.Add(item); themeItems[id] = item;
+      }
+      menu.Items.Add(themes);
       topItem = new Forms.ToolStripMenuItem(Locale.T("alwaysOnTop")); topItem.Checked = true; topItem.Click += async (s, e) => await Setting(new { alwaysOnTop = !topItem.Checked }); menu.Items.Add(topItem);
       codexOnlyItem = new Forms.ToolStripMenuItem(Locale.T("onlyInCodex")) { Checked = onlyInCodex, ToolTipText = Locale.T("onlyInCodexHint") };
       codexOnlyItem.Click += async (s, e) => await Setting(new { onlyInCodex = !onlyInCodex }); menu.Items.Add(codexOnlyItem);
@@ -151,6 +160,7 @@ namespace ModelTide {
       cancelUpdateItem = new Forms.ToolStripMenuItem(Locale.T("cancelUpdate")); cancelUpdateItem.Click += (s, e) => { if (updateCancellation != null) updateCancellation.Cancel(); }; menu.Items.Add(cancelUpdateItem);
       RefreshUpdateMenu();
       menu.Items.Add(Locale.T("quit"), null, (s, e) => Dispatcher.Invoke(new Action(Close)));
+      Theme.ApplyMenu(menu);
       tray.ContextMenuStrip = menu; if (oldMenu != null) oldMenu.Dispose();
     }
     private void RefreshUpdateMenu() {
@@ -212,7 +222,9 @@ namespace ModelTide {
         var summary = usage["summary"] as Dictionary<string, object>;
         var settings = (Dictionary<string, object>)result["settings"];
         string language = settings.ContainsKey("language") && Convert.ToString(settings["language"]) == "en" ? "en" : "zh-CN";
-        if (language != Locale.Language) { Locale.Language = language; Title = Locale.T("miniTitle"); SetupTray(); face.InvalidateVisual(); }
+        bool themeChanged = Theme.Set(settings.ContainsKey("theme") ? Convert.ToString(settings["theme"]) : null);
+        if (language != Locale.Language || themeChanged) { Locale.Language = language; Title = Locale.T("miniTitle"); SetupTray(); face.InvalidateVisual(); }
+        foreach (var theme in themeItems) theme.Value.Checked = theme.Key == Theme.Id;
         foreach (var zone in zoneItems) zone.Value.Checked = zone.Key == Convert.ToString(settings["timezone"]);
         if (settings.ContainsKey("followCodex")) followItem.Checked = Convert.ToBoolean(settings["followCodex"]);
         if (!watcherChecked) {
@@ -307,23 +319,21 @@ namespace ModelTide {
   public class Face : FrameworkElement {
     private string amount = "···";
     private ImageSource character;
-    private static Brush Bg = Brush("#202020"), Ink = Brush("#F2EFFF"), Accent = Brush("#C4B5F2"), Muted = Brush("#ADA4BF"), Black = Brush("#111016");
     public Face() {
       string path = Path.Combine(Entry.Root, "resources", "logo.png");
       if (!File.Exists(path)) path = Path.GetFullPath(Path.Combine(Entry.Root, "..", "src", "ui", "assets", "logo.png"));
       if (File.Exists(path)) { var image = new BitmapImage(); image.BeginInit(); image.UriSource = new Uri(path); image.CacheOption = BitmapCacheOption.OnLoad; image.DecodePixelWidth = 128; image.EndInit(); image.Freeze(); character = image; }
     }
-    private static Brush Brush(string hex) { var b = (SolidColorBrush)new BrushConverter().ConvertFromString(hex); b.Freeze(); return b; }
     public void Set(string value, string tooltip) { ToolTip = tooltip; if (amount != value) { amount = value; InvalidateVisual(); } }
     protected override void OnRender(DrawingContext dc) {
       base.OnRender(dc);
       dc.PushTransform(new ScaleTransform(.75, .75));
-      dc.DrawRoundedRectangle(Bg, null, new Rect(0, 0, 64, 112), 4, 4);
-      for (int i = 0; i < 3; i++) dc.DrawLine(new Pen(Muted, 1.3), new Point(19 + i * 9, 9), new Point(25 + i * 9, 9));
+      dc.DrawRoundedRectangle(Theme.Brush("bg"), null, new Rect(0, 0, 64, 112), 4, 4);
+      for (int i = 0; i < 3; i++) dc.DrawLine(new Pen(Theme.Brush("muted"), 1.3), new Point(19 + i * 9, 9), new Point(25 + i * 9, 9));
       if (character != null) dc.DrawImage(character, new Rect(7, 12, 50, 50));
-      Text(dc, Locale.T("miniToday"), 10, Accent, 63, true);
-      Text(dc, amount, amount.Length > 5 ? 17 : 20, Ink, 75, true);
-      Text(dc, "TOKENS", 8.5, Muted, 99, true);
+      Text(dc, Locale.T("miniToday"), 10, Theme.Brush("accent"), 63, true);
+      Text(dc, amount, amount.Length > 5 ? 17 : 20, Theme.Brush("ink"), 75, true);
+      Text(dc, "TOKENS", 8.5, Theme.Brush("muted"), 99, true);
       dc.Pop();
     }
     private void Text(DrawingContext dc, string text, double size, Brush brush, double y, bool bold) {

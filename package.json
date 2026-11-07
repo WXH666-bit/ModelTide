@@ -1,5 +1,5 @@
 {
-  "name": "modeltide", "version": "0.1.4", "private": true,
+  "name": "modeltide", "version": "0.1.5", "private": true,
   "license": "MIT", "author": "WXH666-bit",
   "description": "Local Codex token usage companion", "main": "dist/main.cjs",
   "scripts": {
@@ -15,7 +15,8 @@
     "test:packaged": "node tests/packaged.mjs",
     "test:updater": "node tests/updater.mjs",
     "test:update-install": "node tests/update-install.mjs",
-    "test:visibility": "node tests/visibility.mjs"
+    "test:visibility": "node tests/visibility.mjs",
+    "test:themes": "node tests/themes.mjs"
   },
   "devDependencies": { "koffi": "3.3.7", "react": "^19.2.0", "react-dom": "^19.2.0", "@modelcontextprotocol/sdk": "^1.25.0", "zod": "^3.25.0", "electron": "45.2.3", "electron-builder": "^26.0.0", "esbuild": "^0.25.0", "typescript": "^5.9.0", "tsx": "^4.20.0", "@types/node": "^24.0.0", "@types/react": "^19.2.0", "@types/react-dom": "^19.2.0", "playwright": "^1.56.0" },
   "build": { "appId": "local.modeltide.details", "productName": "ModelTide-Details", "electronDist": "node_modules/electron/dist", "directories": { "output": "release" }, "files": ["dist/main.cjs", "dist/preload.cjs", "dist/ui/**/*", "package.json"], "extraResources": [{ "from": "dist/collector.cjs", "to": "collector.cjs" }, { "from": "src/ui/assets/logo.png", "to": "logo.png" }], "asar": true, "win": { "target": "dir", "icon": "src/ui/assets/modeltide.ico", "signAndEditExecutable": false } }

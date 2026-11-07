@@ -28,6 +28,8 @@ Logo 原图为 `src/ui/assets/logo-source.png`，轻量显示版本为 `logo.png
 
 “跟随 Codex 启动”开启后，会添加当前用户启动项 ModelTideWatcher，并运行不加载 WPF/Electron 的轻量侦测器；它每 2 秒检查 Codex 进程，随后启动挂件。Codex 完全退出后，挂件、详情和统计服务也退出，只保留侦测器；再次打开 Codex 时恢复。最小化或切换应用不会触发退出；多个 Codex 实例需要全部退出。手动退出挂件后，本次 Codex 会话不会立即重启它；下一次 Codex 打开时再启动。关闭该开关会移除启动项，侦测器在下一轮检查退出。“开机直接启动挂件”是独立选项。两个启动选项默认关闭，不需要管理员权限。
 
+托盘的“界面主题”或详情设置可切换 **深色、浅色、龙娘淡紫**。深色贴合 Codex 深色界面；浅色使用白底深色文字；龙娘淡紫保留原有配色，也是旧设置的默认主题。选择后自动保存，同步更新挂件、菜单和详情，不增加后台进程。
+
 支持今天、近 7 天、近 30 天、本月和自定义日期（单次最多 367 个自然日）；近 N 天包含今天。默认时区 America/Los_Angeles，可在设置中改为 Asia/Shanghai 等 IANA 时区。开机启动默认关闭。
 
 **时区与语言：** 详情设置提供地区搜索和 27 个常用时区，包括北京时间（北京/上海，`Asia/Shanghai`）、香港、台北、东京、首尔、新加坡、曼谷、印度、尼泊尔、迪拜、伦敦、巴黎、柏林、莫斯科、纽约、芝加哥、丹佛、洛杉矶、温哥华、圣保罗、檀香山、悉尼、阿德莱德、珀斯、奥克兰、约翰内斯堡和 UTC，也可输入其他有效的 IANA 时区。托盘可以直接选择同一组地区。夏令时和半小时/45 分钟偏移按所选地区处理；当前时区显示在面板底部。
@@ -149,6 +151,10 @@ The 48×84 DIP native widget docks near the bottom of Codex's left rail. This is
 Right-click the widget or its tray icon to open the usage panel, refresh, reset position, change always-on-top, choose a time zone or language, configure startup, or quit.
 
 **Start with Codex** runs a lightweight watcher and registers the current-user `ModelTideWatcher` sign-in entry. It checks Codex processes every two seconds and launches the widget when Codex starts. When all Codex instances exit, the widget, details and collector exit too, leaving only the watcher. Opening Codex again restarts them. Minimizing Codex or switching apps does not shut them down. Manually quitting the widget does not immediately relaunch it in the same Codex session; the next Codex launch can start it again. Disabling this setting removes the sign-in entry and stops the watcher on its next check. **Start widget at sign-in** is a separate setting. Both startup options are off by default and require no administrator access.
+
+### Themes
+
+Choose **Dark**, **Light** or **Dragon violet** in the tray’s **Theme** submenu or the panel settings. Dark blends with Codex’s dark appearance; Light uses a white surface and dark text; Dragon violet keeps the original mascot palette and remains the default for existing preferences. Selection saves immediately and updates the widget, menus and details. No additional background process is needed.
 
 ### Time zones and languages
 

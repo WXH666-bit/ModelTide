@@ -1,5 +1,7 @@
 import { _electron as electron } from 'playwright';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { createConnection } from 'node:net';
 import { mkdir, writeFile, rm, appendFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -19,7 +21,17 @@ const file = join(root, 'codex/sessions/fixture.jsonl');
 await writeFile(file, rows.map(JSON.stringify).join('\n') + '\n');
 const env = { ...process.env, MODELTIDE_DATA_DIR: join(root, 'data'), MODELTIDE_CODEX_DIR: join(root, 'codex'), MODELTIDE_TEST_STANDALONE: '1' };
 delete env.ELECTRON_RUN_AS_NODE;
-const app = await electron.launch({ args: ['.'], env, timeout: 30000 });
+// A direct collector call simulates a tray change without the renderer IPC notification.
+function trayTheme(theme) { return new Promise((resolve, reject) => {
+  const pipe = '\\\\.\\pipe\\modeltide-' + createHash('sha256').update(env.MODELTIDE_DATA_DIR).digest('hex').slice(0, 16);
+  const socket = createConnection(pipe); let data = '';
+  socket.setEncoding('utf8'); socket.setTimeout(4000, () => { socket.destroy(); reject(Error('theme sync timeout')); });
+  socket.on('error', reject); socket.on('connect', () => socket.write(JSON.stringify({ method: 'settings', params: { theme } }) + '\n'));
+  socket.on('data', chunk => { data += chunk; if (!data.includes('\n')) return; socket.end(); const reply = JSON.parse(data); reply.error ? reject(Error(reply.error)) : resolve(reply.result); });
+}); }
+
+const runtime = process.env.MODELTIDE_TEST_RUNTIME;
+const app = await electron.launch({ args: [runtime ? join(runtime, 'main.cjs') : '.'], env, timeout: 30000 });
 const errors = [];
 let client;
 try {
@@ -30,6 +42,30 @@ try {
   await page.screenshot({ path: join(root, 'panel.png') });
   assert.equal(await page.locator('.total-line strong').textContent(), '12.9M');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.equal(await page.evaluate(async () => (await window.modeltide.state()).settings.theme), 'violet', 'legacy settings keep the original theme');
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  for (const [id, label] of [['dark', '深色'], ['light', '浅色'], ['violet', '龙娘淡紫']]) {
+    await page.getByRole('radio', { name: label, exact: true }).click();
+    await page.waitForFunction(id => document.documentElement.dataset.theme === id, id);
+    assert.equal(await page.evaluate(async () => (await window.modeltide.state()).settings.theme), id);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({ path: join(root, `settings-${id}.png`) });
+    await page.getByRole('button', { name: '设置', exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll('.models li').length === 3);
+    await page.screenshot({ path: join(root, `theme-${id}.png`) });
+    if (runtime) {
+      const html = (await page.content()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '').replaceAll('./index.css', './runtime/ui/index.css').replaceAll('./assets/', './runtime/ui/assets/');
+      await writeFile(join(runtime, '..', `theme-${id}.html`), html);
+    }
+    await page.getByRole('button', { name: '设置', exact: true }).click();
+  }
+  await trayTheme('dark');
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark', undefined, { timeout: 4000 });
+  assert.equal(await page.getByRole('radio', { name: '深色', exact: true }).isChecked(), true);
+  await trayTheme('violet');
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'violet', undefined, { timeout: 4000 });
+  await assert.rejects(() => page.evaluate(() => window.modeltide.settings({ theme: 'bad-theme' })), /不支持的界面主题/);
+  await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('combobox', { name: '模型筛选' }).selectOption('gpt-6.1-sol');
   await page.waitForFunction(() => document.querySelector('.total-line strong')?.textContent === '6.5M');
   await page.getByRole('button', { name: '近 7 天', exact: true }).click();
@@ -63,6 +99,8 @@ try {
   await page.getByRole('heading', { name: 'Widget settings' }).waitFor();
   assert.equal(await page.getByRole('checkbox', { name: 'Show only in Codex', exact: true }).isChecked(), false);
   assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
+  await page.getByRole('radio', { name: 'Light', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
   await page.getByRole('button', { name: /^Statistics time zone / }).click();
   await page.getByLabel('Search region or time zone').fill('Kathmandu');
   await page.getByRole('button', { name: 'Kathmandu Asia/Kathmandu' }).click();
@@ -90,8 +128,9 @@ try {
   await page.screenshot({ path: join(root, 'settings-en.png') });
   const persisted = JSON.parse(await (await import('node:fs/promises')).readFile(join(root, 'data/settings.json'), 'utf8'));
   assert.equal(persisted.language, 'en'); assert.equal(persisted.timezone, 'Asia/Shanghai');
-  assert.equal(persisted.onlyInCodex, false);
+  assert.equal(persisted.onlyInCodex, false); assert.equal(persisted.theme, 'light');
   await page.reload();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /^Statistics time zone Beijing/ }).waitFor();
   assert.equal(await page.getByRole('checkbox', { name: 'Show only in Codex', exact: true }).isChecked(), false);
@@ -102,7 +141,7 @@ try {
   await page.getByRole('button', { name: '设置', exact: true }).click();
   // MCP handshake, all three public tools, and structured reconciliation.
   client = new Client({ name: 'modeltide-test', version: '1.0.0' });
-  const transport = new StdioClientTransport({ command: process.execPath, args: [resolve('dist/mcp.cjs')], env });
+  const transport = new StdioClientTransport({ command: process.execPath, args: [runtime ? join(runtime, 'mcp.cjs') : resolve('dist/mcp.cjs')], env });
   await client.connect(transport);
   assert.equal((await client.listTools()).tools.length, 3);
   const summary = await client.callTool({ name: 'get_usage_summary', arguments: { range: 'today' } });

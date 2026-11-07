@@ -1,0 +1,17 @@
+{
+  "default": "violet",
+  "themes": {
+    "dark": {
+      "label": "themeDark", "scheme": "dark",
+      "colors": { "bg": "#202020", "ink": "#F3F1F6", "muted": "#BDB8C5", "accent": "#C4B5F2", "line": "#48454C", "stroke": "#111111", "rim": "#7E7689", "surface": "#292929", "control": "#282828", "controlBorder": "#81788B", "hover": "#353238", "selected": "#3C3448", "track": "#454149", "secondary": "#B0A3C1", "grid": "#57515E", "footer": "#252525", "notice": "#E3C2E7", "tag": "#DED7EB", "tagInk": "#28232F" }
+    },
+    "light": {
+      "label": "themeLight", "scheme": "light",
+      "colors": { "bg": "#FAFAFA", "ink": "#25222B", "muted": "#625C6A", "accent": "#684A98", "line": "#D6D0DE", "stroke": "#49414F", "rim": "#C8BED3", "surface": "#F0EDF4", "control": "#FFFFFF", "controlBorder": "#A39AAE", "hover": "#EEE9F3", "selected": "#E7DFF0", "track": "#DED6E6", "secondary": "#81718F", "grid": "#C9C1D3", "footer": "#F3F1F6", "notice": "#7B5087", "tag": "#E7DFF0", "tagInk": "#352743" }
+    },
+    "violet": {
+      "label": "themeViolet", "scheme": "dark",
+      "colors": { "bg": "#201E27", "ink": "#F2EFFF", "muted": "#BCB3CE", "accent": "#C4B5F2", "line": "#4A435B", "stroke": "#100D17", "rim": "#847796", "surface": "#2A2634", "control": "#2C2536", "controlBorder": "#79658C", "hover": "#302938", "selected": "#3B304A", "track": "#41364E", "secondary": "#AD9BBC", "grid": "#554B64", "footer": "#25212E", "notice": "#E3C2E7", "tag": "#DFD5F6", "tagInk": "#221C30" }
+    }
+  }
+}

@@ -43,7 +43,7 @@ if (locked) app.whenReady().then(async () => {
   ipcMain.handle('query', (_e, q: Query) => request('query', q)); ipcMain.handle('state', () => request('state')); ipcMain.handle('action', (_e, name: string) => action(name));
   ipcMain.handle('settings', async (_e, value) => { const s = await request('settings', value); await notify(); return s; });
   await win.loadFile(join(__dirname, 'ui/index.html')); win.show();
-  timer = setInterval(() => void notify(), 10000);
+  timer = setInterval(() => void notify(), 2000);
   app.on('second-instance', () => { win.show(); win.focus(); });
 }).catch(e => { console.error(e); app.quit(); });
 app.on('window-all-closed', () => app.quit());

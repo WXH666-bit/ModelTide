@@ -37,7 +37,7 @@ async function digest(path) { const hash = createHash('sha256'); for await (cons
 // the regular unpacked directory is the user's running application, not writable test data.
 try { await access(join(appRoot, 'ModelTide.exe')); }
 catch { const setup = spawn(sourceInstaller, ['/S /UPDATE /D=' + appRoot], { env, windowsHide: true, windowsVerbatimArguments: true, stdio: 'ignore' }); await completed(setup); }
-const preferences = { timezone: 'Asia/Shanghai', language: 'en', offset: { x: 8, y: 100 }, followCodex: true, launchAtLogin: false, alwaysOnTop: true, onlyInCodex: false };
+const preferences = { timezone: 'Asia/Shanghai', language: 'en', theme: 'light', offset: { x: 8, y: 100 }, followCodex: true, launchAtLogin: false, alwaysOnTop: true, onlyInCodex: false };
 await writeFile(join(data, 'settings.json'), JSON.stringify(preferences));
 await writeFile(join(data, 'keep.txt'), 'user data must survive');
 await writeFile(join(codex, 'sessions/fixture.jsonl'), [
@@ -73,6 +73,7 @@ try {
   assert.equal(widget.exitCode, 0); assert.equal(watcher.exitCode, 0);
   const after = await until(async () => { const result = await request('health'); return result.pid !== before.pid && result; });
   newCollector = after.pid;
+  assert.equal((await request('state')).settings.theme, 'light', 'theme survives installation and restart');
   await until(async () => (await request('snapshot')).usage.summary?.total === 120);
   assert.deepEqual(JSON.parse(await readFile(join(data, 'settings.json'), 'utf8')), preferences);
   assert.equal(await readFile(join(data, 'keep.txt'), 'utf8'), 'user data must survive');

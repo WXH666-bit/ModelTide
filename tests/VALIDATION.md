@@ -1,5 +1,27 @@
 # Validation
 
+## v0.1.5 — theme release packaging
+
+Input: theme changes developed on `de6c0df0a8ea5b939f05aa35d10b0faa027d779d`, now authorized for release as 0.1.5. Dependencies and previously passed theme/locale/accounting/UI/native-render checks below were reused; only the package version and release smoke assertions changed during this packaging step.
+
+- `npm run package`: application compilation and native theme-resource embedding passed. The Node license fetch encountered ECONNRESET; only `node scripts/bundle-runtime.mjs` and `node scripts/package-plugin.mjs` were retried, successfully, without rebuilding the application or reinstalling dependencies.
+- `npm run test:updater`: 37 checks passed for 0.1.5 metadata.
+- `npm run test:packaged`: passed with empty PATH, bundled Node, saved English/Beijing/light-theme preferences, loaded mascot, and clean shutdown. The rendered document uses the saved light theme.
+- `npm run installer` and `npm run test:update-install`: passed using the final 0.1.5 installer and the existing isolated 0.1.4 installation. Theme, other preferences, synthetic usage (120 tokens), process shutdown/restart and installer-cache cleanup were preserved. No personal installation was modified.
+- Desktop deliverable: `C:/Users/18246/Desktop/ModelTide-0.1.5-Setup-x64.exe`. Older desktop installers are retained.
+
+## Local themes — unreleased, no package build
+
+Input: working-tree theme changes on top of `de6c0df0a8ea5b939f05aa35d10b0faa027d779d`. Package version remains 0.1.4. Per the user's pause, these changes were not committed, pushed or packaged. Tests transpile only small runtime fixtures under `tests/tmp/themes`; existing dependencies, source assets and Electron are reused. The installed personal application and desktop installer are unchanged.
+
+- `npm run typecheck`: passed. `npm test`: original accounting/locale/release tests plus theme contrast passed (14 tests at that point). After adding the collector-restart case, `node node_modules/tsx/dist/cli.mjs --test tests/theme.test.ts tests/theme-settings.test.ts`: 2/2 passed. The latter checks legacy/default themes, invalid IDs, persisted selection, a full collector restart and fallback from an unknown saved theme.
+- `npm run test:themes`: passed. Test-only C# compilation includes the current Widget, Theme, Locale and updater sources; it renders the WPF widget and actual WinForms tray menu for all three themes, verifies exclusive menu selection and translated labels, and samples the widget background after each switch. The first fixture lacked the application's version attribute; adding that attribute fixed the test setup without changing production version handling.
+- UI/MCP regression passed against the temporary runtime. All three radio choices apply and persist, both languages work, light theme survives renderer reload, and external collector settings calls (simulating the tray) update the open details window within four seconds. Existing range/filter/empty-state/time-zone/MCP/incremental-update/Escape behavior passed. After adding the external-change assertions, only the affected UI suite was rerun with `MODELTIDE_TEST_RUNTIME=tests/tmp/themes/runtime`; unchanged native/unit evidence was reused.
+- Real browser visual inspection: all three themes, settings previews, light/dark tray menus and native widget renders were reviewed. Small labels were raised to at least 11 CSS px, chart ticks enlarged, and the font-dependent gear glyph replaced with an SVG. Text-role contrast is at least 4.5:1 on the catalog's background, control, metrics, selected and footer surfaces.
+- `inspect.mjs --app` on the three saved rendered overview snapshots at 390px: 0 FAIL, 1 WARN each. Violet is explicitly allowed because the user requested the existing dragon mascot palette. The warning concerns the proportion of 11–12px metadata; it is retained for the fixed 420×560 desktop panel, whose actual Electron screenshots were separately reviewed. An initial 420px inspector run used its built-in 263px height, so those cropped images were superseded by the supported 390px review; it is not treated as an actual app viewport.
+- `lint.mjs --app src/ui`: 0 FAIL, 4 WARN. Retained warnings are the period label above the total, actual model ranks, the existing 1px inset comic outline, and em dashes used for missing data/date ranges; none is decorative filler added by this change.
+- Visual critique: the token total remains the first answer; panel edges align; the data and selections share one accent; fixture totals reconcile (12.9M); missing values remain dashes; chart labels do not collide; there is no navigation to fold in this compact app. The existing layout and mascot were retained instead of drawing a new screen direction. Preview data is synthetic test usage, not personal usage.
+
 ## v0.1.4 — exit and restart with Codex
 
 Input: changes based on `5b211e03edc5aeffdca457084630c36cd4b5efea`, package version `0.1.4`, built in `E:/projects/ModelTide`. Existing dependencies and isolated test installations were reused. Only mutable synthetic SQLite state is reset between native test runs.

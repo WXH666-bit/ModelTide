@@ -9,9 +9,10 @@ import { pipeName } from './protocol';
 import { validTimezone } from './time';
 import type { Settings } from './types';
 import { coverageText, t, translateError, validLanguage } from './locale';
+import { defaultTheme, validTheme } from './theme';
 const run = promisify(execFile);
 const dataDir = process.env.MODELTIDE_DATA_DIR || join(process.env.APPDATA || homedir(), 'ModelTide');
-let settings: Settings = { timezone: 'America/Los_Angeles', language: 'zh-CN', offset: null, launchAtLogin: false, followCodex: false, alwaysOnTop: true, onlyInCodex: true };
+let settings: Settings = { timezone: 'America/Los_Angeles', language: 'zh-CN', theme: defaultTheme, offset: null, launchAtLogin: false, followCodex: false, alwaysOnTop: true, onlyInCodex: true };
 let store: UsageStore, error: string | undefined, quitting = false;
 let command = '', commandSequence = 0;
 const owner = Number(process.argv.find(a => a.startsWith('--owner-pid='))?.split('=')[1]);
@@ -20,6 +21,7 @@ const persist = () => writeFile(settingFile, JSON.stringify(settings, null, 2));
 async function updateSettings(update: Partial<Settings>) {
   let watcher: string | undefined;
   if (update.language !== undefined && !validLanguage(update.language)) throw new Error(t(settings.language, 'invalidLanguage'));
+  if (update.theme !== undefined && !validTheme(update.theme)) throw new Error(t(settings.language, 'invalidTheme'));
   if (update.timezone !== undefined) { if (!validTimezone(update.timezone)) throw new Error('无效的 IANA 时区'); settings.timezone = update.timezone; }
   if ('offset' in update) {
     if (update.offset !== null && (!Number.isFinite(update.offset?.x) || !Number.isFinite(update.offset?.y))) throw new Error('无效的位置');
@@ -43,6 +45,7 @@ async function updateSettings(update: Partial<Settings>) {
   if (update.alwaysOnTop !== undefined) settings.alwaysOnTop = Boolean(update.alwaysOnTop);
   if (update.onlyInCodex !== undefined) settings.onlyInCodex = Boolean(update.onlyInCodex);
   if (update.language !== undefined) settings.language = update.language;
+  if (update.theme !== undefined) settings.theme = update.theme;
   await persist();
   if (watcher && settings.followCodex) { const child = spawn(watcher, [], { windowsHide: true, detached: true, stdio: 'ignore' }); child.unref(); }
   return settings;
@@ -84,6 +87,7 @@ async function start() {
   await mkdir(dataDir, { recursive: true });
   try { settings = { ...settings, ...JSON.parse(await readFile(settingFile, 'utf8')) }; if (!validTimezone(settings.timezone)) settings.timezone = 'America/Los_Angeles'; } catch {}
   if (!validLanguage(settings.language)) settings.language = 'zh-CN';
+  if (!validTheme(settings.theme)) settings.theme = defaultTheme;
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(pipeName(), resolve); });
   store = await UsageStore.create(process.env.MODELTIDE_CODEX_DIR || process.env.CODEX_HOME || join(homedir(), '.codex'), join(dataDir, 'usage.sqlite'));
   void scan(); scanTimer = setInterval(() => void scan(), 10000);

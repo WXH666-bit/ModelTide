@@ -1,7 +1,8 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { HostState } from '../types';
 import { t } from '../locale';
+import { applyTheme, defaultTheme } from '../theme';
 import './style.css';
 import './theme.css';
 const Panel = lazy(() => import('./panel'));
@@ -10,6 +11,8 @@ function App() {
   const [host, setHost] = useState<HostState>();
   const [error, setError] = useState('');
   const language = host?.settings.language ?? 'zh-CN';
+  const theme = host?.settings.theme ?? defaultTheme;
+  useLayoutEffect(() => applyTheme(theme, document.documentElement), [theme]);
   useEffect(() => {
     let active = true;
     void bridge.state().then(value => { if (active) setHost(value); }).catch(e => active && setError(e.message));

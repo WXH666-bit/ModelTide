@@ -4,6 +4,7 @@ import { coverageText, t, timezones, type Language, type MessageKey } from '../l
 import { DragHandle } from './components';
 import { compact, exact } from './format';
 import { validTimezone } from '../time';
+import { themes, themeIds, defaultTheme } from '../theme';
 const bridge = window.modeltide;
 const rangeKeys: [Range, MessageKey][] = [['today', 'today'], ['7d', 'week'], ['30d', 'month30'], ['month', 'month'], ['custom', 'custom']];
 
@@ -35,6 +36,7 @@ export default function Panel({ host }: { host: HostState }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [themeBusy, setThemeBusy] = useState(false);
   const [zonesOpen, setZonesOpen] = useState(false);
   const [zoneBusy, setZoneBusy] = useState(false);
   const [zoneError, setZoneError] = useState('');
@@ -63,10 +65,19 @@ export default function Panel({ host }: { host: HostState }) {
   const coverage = data ? coverageText(data.coverage, language) : text('coverageLocal');
   const formatDate = (date: string | null | undefined) => date ? new Intl.DateTimeFormat(language, { timeZone: host.settings.timezone }).format(new Date(date)) : '—';
   return <main className="panel">
-    <header><DragHandle className="brand" title={text('drag')}><div className="character"><img src="./assets/logo.png" alt={text('logo')} draggable="false"/></div><div><h1>ModelTide<span className="brand-dot">.</span></h1><p>{text('tagline')}</p></div></DragHandle><button className="icon-button" aria-label={text('settings')} title={text('settings')} onClick={() => setSettingsOpen(!settingsOpen)}>⚙</button><button className="icon-button close" aria-label={text('close')} title={text('closeHint')} onClick={() => void bridge.action('collapse')}>−</button></header>
+    <header><DragHandle className="brand" title={text('drag')}><div className="character"><img src="./assets/logo.png" alt={text('logo')} draggable="false"/></div><div><h1>ModelTide<span className="brand-dot">.</span></h1><p>{text('tagline')}</p></div></DragHandle><button className="icon-button" aria-label={text('settings')} title={text('settings')} onClick={() => setSettingsOpen(!settingsOpen)}><svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="m9.5 3-.6 2.3-2 .9-2.1-.6-2.5 4.3 1.6 1.7v2.3L2.3 15.6l2.5 4.3 2.1-.6 2 .9.6 2.3h5l.6-2.3 2-.9 2.1.6 2.5-4.3-1.6-1.7v-2.3l1.6-1.7-2.5-4.3-2.1.6-2-.9L14.5 3Z" transform="translate(0 -1) scale(1 .96)"/><circle cx="12" cy="12" r="3.4"/></svg></button><button className="icon-button close" aria-label={text('close')} title={text('closeHint')} onClick={() => void bridge.action('collapse')}>−</button></header>
     <div className="panel-body">
       {settingsOpen ? <section className="settings">
         <h2>{text('widgetSettings')}</h2>
+        <fieldset className="theme-picker">
+          <legend>{text('theme')}</legend>
+          <div className="theme-choices">{themeIds.map(id => <label className="theme-choice" key={id}>
+            <input type="radio" name="theme" value={id} checked={(host.settings.theme ?? defaultTheme) === id} disabled={themeBusy} onChange={() => { setThemeBusy(true); void change({ theme: id }).finally(() => setThemeBusy(false)); }}/>
+            <span className="theme-preview" aria-hidden="true" style={{ background: themes[id].colors.bg, color: themes[id].colors.ink, borderColor: themes[id].colors.line }}><i style={{ background: themes[id].colors.accent }}/><b>12.9<span>M</span></b><em style={{ background: themes[id].colors.surface }}/></span>
+            <span>{text(themes[id].label as MessageKey)}</span>
+          </label>)}</div>
+          <p className="theme-help">{text('themeHint')}</p>
+        </fieldset>
         <label>{text('language')}<select aria-label={text('language')} value={language} onChange={e => void change({ language: e.target.value as Language })}><option value="zh-CN">简体中文</option><option value="en">English</option></select></label>
         <div className="timezone-setting">
           <span id="timezone-label">{text('timezone')}</span>

@@ -9,7 +9,7 @@ const appRoot = resolve(process.env.MODELTIDE_PACKAGED_ROOT || 'release/win-unpa
 const testRoot = resolve('tests/tmp/packaged');
 await mkdir(join(testRoot, 'data'), { recursive: true });
 await mkdir(join(testRoot, 'codex/sessions'), { recursive: true });
-await writeFile(join(testRoot, 'data/settings.json'), JSON.stringify({ language: 'en', timezone: 'Asia/Shanghai', offset: null, followCodex: false, launchAtLogin: false, alwaysOnTop: true }));
+await writeFile(join(testRoot, 'data/settings.json'), JSON.stringify({ language: 'en', theme: 'light', timezone: 'Asia/Shanghai', offset: null, followCodex: false, launchAtLogin: false, alwaysOnTop: true }));
 const env = { ...process.env, PATH: '', MODELTIDE_DATA_DIR: join(testRoot, 'data'), MODELTIDE_CODEX_DIR: join(testRoot, 'codex'), MODELTIDE_TEST_STANDALONE: '1' };
 delete env.MODELTIDE_NODE_PATH; delete env.ELECTRON_RUN_AS_NODE;
 const pipe = '\\\\.\\pipe\\modeltide-' + createHash('sha256').update(env.MODELTIDE_DATA_DIR).digest('hex').slice(0, 16);
@@ -26,10 +26,12 @@ let details, collector;
 try {
   collector = (await until(() => request('health'))).pid;
   const state = await request('state');
+  assert.equal(state.settings.theme, 'light');
   assert.equal(state.settings.language, 'en'); assert.equal(state.settings.timezone, 'Asia/Shanghai');
   details = await electron.launch({ executablePath: join(appRoot, 'ModelTide-Details.exe'), env, timeout: 30000 });
   const page = await details.firstWindow();
   await page.getByRole('heading', { name: 'ModelTide.' }).waitFor();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
   assert.ok(await page.getByAltText('ModelTide dragon mascot logo').evaluate(img => img.complete && img.naturalWidth === 256));
   assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
   const closed = details.waitForEvent('close');
